@@ -2,7 +2,7 @@
 // Run: node test_stream.js
 // Tests the full pipeline: sources -> stream -> download
 
-const API = process.env.TEST_API || 'https://moviezone-api.nwebeduzion.workers.dev/api';
+const API = process.env.TEST_API || 'https://moviezone-api.onrender.com/api';
 const TEST_MOVIE = '8906247916759695608'; // Avatar
 const TEST_SERIES = '9028867555875774472'; // Wednesday
 const TIMEOUT = 60000;

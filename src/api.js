@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'https://moviezone-api.nwebeduzion.workers.dev/api';
+const API_URL = 'https://moviezone-api.onrender.com/api';
 
 export const getImageUrl = (path, size = 'w342') => {
     if (!path) return '';
@@ -76,7 +76,8 @@ export const fetchHomepage = async () => {
 
 export const fetchGenre = async (genre) => {
     try {
-        const response = await fetch(`${API_URL}/genre/${encodeURIComponent(genre)}`);
+        // API doesn't have genre endpoint, use search as fallback
+        const response = await fetch(`${API_URL}/search/${encodeURIComponent(genre)}`);
         const json = await response.json();
         return json.data?.items || [];
     } catch (e) {

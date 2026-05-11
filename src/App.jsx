@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import logoSrc from './assets{logoSrc}';
+import logoSrc from './assets/logo.png';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Home as HomeIcon, Search, FolderDown, User, Play, Bookmark, Flame } from 'lucide-react';
 import Home from './Home';

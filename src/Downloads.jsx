@@ -6,8 +6,30 @@ import { useAppContext } from './AppContext';
 import { slugify } from './api';
 
 export default function Downloads() {
-  const { downloads, removeDownload } = useAppContext();
+  const { user, downloads, removeDownload } = useAppContext();
   const navigate = useNavigate();
+
+  if (!user) return (
+    <div className="page-container" style={{ padding: '24px 20px', paddingBottom: 100 }}>
+      <div className="header">
+        <div className="header-title">
+          <img src={logoSrc} style={{ height: 28, width: 28, objectFit: 'contain', marginRight: 8 }} alt="M" /> Download
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginTop: 100 }}>
+        <div style={{ width: 120, height: 120, backgroundColor: 'var(--surface-color-light)', borderRadius: '50%', marginBottom: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Download size={60} color="var(--primary-red)" />
+        </div>
+        <h2 style={{ fontSize: 24, fontWeight: 700, color: 'var(--primary-red)', marginBottom: 12 }}>Sign In to Download</h2>
+        <p style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: '0 20px', marginBottom: 32 }}>
+          Create a free account to save and download movies and series.
+        </p>
+        <button onClick={() => navigate('/auth')} style={{ padding: '13px 36px', borderRadius: 30, background: 'var(--primary-red)', border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
+          Sign In
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <div className="page-container" style={{ padding: '24px 20px', paddingBottom: 100 }}>

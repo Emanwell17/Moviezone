@@ -1,13 +1,14 @@
 import { createContext, useContext, useState } from "react";
+import { checkIn, trackDownload } from "./api";
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
     const [user, setUser] = useState(() => {
         try {
-            return JSON.parse(localStorage.getItem('user')) || { name: 'Guest', email: '', role: 'user' };
+            return JSON.parse(localStorage.getItem('user')) || null;
         } catch {
-            return { name: 'Guest', email: '', role: 'user' };
+            return null;
         }
     });
     const [favorites, setFavorites] = useState([]);
@@ -22,6 +23,7 @@ export const AppProvider = ({ children }) => {
         localStorage.setItem('token', token);
         localStorage.setItem('user', JSON.stringify(userData));
         setUser(userData);
+        checkIn();
     };
 
     const isPremium = user?.isPremium || false;
@@ -51,6 +53,8 @@ export const AppProvider = ({ children }) => {
     const isInMyList = (id) => myList.some(m => m.id === id);
 
     const addDownload = (item) => {
+        const alreadyExists = downloads.find(d => d.id === item.id);
+        if (!alreadyExists) trackDownload();
         setDownloads(prev => {
             if (prev.find(d => d.id === item.id)) return prev;
             const updated = [item, ...prev];

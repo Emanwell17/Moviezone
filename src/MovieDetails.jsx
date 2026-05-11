@@ -7,7 +7,7 @@ import { getImageUrl, fetchSources, fetchInfo } from './api';
 const MovieDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addDownload, addToMyList, removeFromMyList, isInMyList } = useAppContext();
+  const { user, addDownload, addToMyList, removeFromMyList, isInMyList } = useAppContext();
   const [movie, setMovie] = useState(null);
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -155,7 +155,7 @@ const MovieDetails = () => {
             {isSeries ? `Play S${selectedSeason} E${selectedEpisode}` : 'Play'}
           </button>
           <div style={{ position: 'relative' }}>
-            <button onClick={() => { if (!sources.length) { alert('No download links found'); return; } setShowDownloadMenu(v => !v); }}
+            <button onClick={() => { if (!user) { navigate('/auth'); return; } if (!sources.length) { alert('No download links found'); return; } setShowDownloadMenu(v => !v); }}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#222', color: 'white', width: 50, height: '100%', minHeight: 48, borderRadius: 15, border: 'none', cursor: 'pointer' }}>
               <Download size={20} />
             </button>

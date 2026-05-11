@@ -134,23 +134,97 @@ export const resolveMovieBoxId = async (id, titleHint = '') => {
   return String(id);
 };
 
-// --- AUTH stubs ---
-export const loginUser = async () => ({ status: 'error', message: 'Login not available' });
-export const signupUser = async () => ({ status: 'error', message: 'Signup not available' });
+// --- AUTH ---
+const getToken = () => localStorage.getItem('token');
+const authHeaders = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}` });
 
-// --- Stubs for admin/ads/settings ---
-export const fetchAds = async () => ({ status: 'success', data: [] });
-export const fetchAdminStats = async () => ({ status: 'error', data: null });
-export const fetchAdminUsers = async () => ({ status: 'error', data: [] });
-export const saveAd = async () => ({ status: 'error' });
-export const deleteAd = async () => ({ status: 'error' });
-export const updateUserStatus = async () => ({ status: 'error' });
-export const fetchAdminContent = async () => ({ status: 'error', data: [] });
-export const fetchSettingsPublic = async () => ({ status: 'success', data: { maintenanceMode: false, siteName: 'MovieZone' } });
-export const saveFeaturedContent = async () => ({ status: 'error' });
-export const deleteFeaturedContent = async () => ({ status: 'error' });
-export const fetchSettings = async () => ({ status: 'error', data: {} });
-export const saveSettings = async () => ({ status: 'error' });
+export const loginUser = async (data) => {
+  try {
+    const res = await fetch(`${API}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    return res.json();
+  } catch (e) { return { status: 'error', message: e.message }; }
+};
+
+export const signupUser = async (data) => {
+  try {
+    const res = await fetch(`${API}/api/auth/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    return res.json();
+  } catch (e) { return { status: 'error', message: e.message }; }
+};
+
+// --- USER ACTIVITY ---
+export const trackDownload = async () => {
+  const token = getToken();
+  if (!token) return;
+  try { await fetch(`${API}/api/user/track-download`, { method: 'POST', headers: authHeaders() }); } catch {}
+};
+
+export const checkIn = async () => {
+  const token = getToken();
+  if (!token) return;
+  try { await fetch(`${API}/api/user/checkin`, { method: 'POST', headers: authHeaders() }); } catch {}
+};
+
+// --- ADMIN / ADS / SETTINGS ---
+export const fetchAds = async () => {
+  try { const res = await fetch(`${API}/api/ads`); return res.json(); }
+  catch { return { status: 'success', data: [] }; }
+};
+
+export const fetchAdminStats = async () => {
+  try { const res = await fetch(`${API}/api/admin/stats`, { headers: authHeaders() }); return res.json(); }
+  catch (e) { return { status: 'error', message: e.message }; }
+};
+
+export const fetchAdminUsers = async () => {
+  try { const res = await fetch(`${API}/api/admin/users`, { headers: authHeaders() }); return res.json(); }
+  catch (e) { return { status: 'error', data: [] }; }
+};
+
+export const saveAd = async (ad) => {
+  try { const res = await fetch(`${API}/api/admin/ads`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(ad) }); return res.json(); }
+  catch (e) { return { status: 'error' }; }
+};
+
+export const deleteAd = async (id) => {
+  try { const res = await fetch(`${API}/api/admin/ads/${id}`, { method: 'DELETE', headers: authHeaders() }); return res.json(); }
+  catch (e) { return { status: 'error' }; }
+};
+
+export const updateUserStatus = async (userId, data) => {
+  try { const res = await fetch(`${API}/api/admin/users/${userId}`, { method: 'PATCH', headers: authHeaders(), body: JSON.stringify(data) }); return res.json(); }
+  catch (e) { return { status: 'error' }; }
+};
+
+export const fetchAdminContent = async () => {
+  try { const res = await fetch(`${API}/api/admin/content`, { headers: authHeaders() }); return res.json(); }
+  catch (e) { return { status: 'error', data: { featured: [], categories: [] } }; }
+};
+
+export const fetchSettingsPublic = async () => {
+  try { const res = await fetch(`${API}/api/settings`); return res.json(); }
+  catch { return { status: 'success', data: { maintenanceMode: false, siteName: 'MovieZone' } }; }
+};
+
+export const fetchSettings = async () => {
+  try { const res = await fetch(`${API}/api/admin/settings`, { headers: authHeaders() }); return res.json(); }
+  catch (e) { return { status: 'error', data: {} }; }
+};
+
+export const saveSettings = async (data) => {
+  try { const res = await fetch(`${API}/api/admin/settings`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(data) }); return res.json(); }
+  catch (e) { return { status: 'error' }; }
+};
+
+export const saveFeaturedContent = async (movie) => {
+  try { const res = await fetch(`${API}/api/admin/content/featured`, { method: 'POST', headers: authHeaders(), body: JSON.stringify(movie) }); return res.json(); }
+  catch (e) { return { status: 'error' }; }
+};
+
+export const deleteFeaturedContent = async (id) => {
+  try { const res = await fetch(`${API}/api/admin/content/featured/${id}`, { method: 'DELETE', headers: authHeaders() }); return res.json(); }
+  catch (e) { return { status: 'error' }; }
+};
 
 export const tmdbApi = {
   getTrending: fetchTrending,

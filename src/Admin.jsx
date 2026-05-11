@@ -278,6 +278,8 @@ const Admin = () => {
                         <th>Email</th>
                         <th>Role</th>
                         <th>Subscription</th>
+                        <th>Downloads</th>
+                        <th>Last Check-in</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -289,22 +291,31 @@ const Admin = () => {
                           <td><span style={{ color: u.role === 'admin' ? 'var(--primary-red)' : '#fff' }}>{u.role}</span></td>
                           <td>{u.isPremium ? 'Premium (Active)' : 'Free Plan'}</td>
                           <td>
+                            <span style={{ fontWeight: 'bold', color: (u.downloadCount || 0) > 0 ? '#34d399' : '#555' }}>
+                              {u.downloadCount || 0}
+                            </span>
+                          </td>
+                          <td style={{ color: u.lastCheckIn ? '#aaa' : '#444', fontSize: '12px' }}>
+                            {u.lastCheckIn
+                              ? new Date(u.lastCheckIn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                              : '—'}
+                          </td>
+                          <td>
                             <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                               <button 
+                               <button
                                   onClick={() => handleTogglePremium(u._id || u.id, u.isPremium)}
-                                  style={{ 
-                                    color: u.isPremium ? '#f59e0b' : '#34d399', 
-                                    background: 'none', 
-                                    border: `1px solid ${u.isPremium ? '#f59e0b' : '#34d399'}`, 
+                                  style={{
+                                    color: u.isPremium ? '#f59e0b' : '#34d399',
+                                    background: 'none',
+                                    border: `1px solid ${u.isPremium ? '#f59e0b' : '#34d399'}`,
                                     padding: '4px 8px',
                                     borderRadius: '4px',
                                     fontSize: '11px',
-                                    cursor: 'pointer' 
+                                    cursor: 'pointer'
                                   }}
                                >
                                  {u.isPremium ? 'Revoke' : 'PRO'}
                                </button>
-                               <button style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}>Edit</button>
                             </div>
                           </td>
                         </tr>

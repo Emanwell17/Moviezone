@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import logoSrc from './assets/logo.png';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link, Navigate, useLocation } from 'react-router-dom';
 import { Home as HomeIcon, Search, FolderDown, User, Play, Bookmark, Flame } from 'lucide-react';
 import Home from './Home';
 import Profile from './Profile';
@@ -24,18 +24,21 @@ const BottomNav = () => {
   const currentPath = location.pathname;
   const { user } = useAppContext();
 
-  if (!user) return null;
+  if (currentPath.startsWith('/player')) return null;
+  if (currentPath.startsWith('/admin')) return null;
+  if (currentPath === '/auth') return null;
 
-  const navItems = [
+  const navItems = user ? [
     { path: '/', label: 'Home', icon: <HomeIcon /> },
     { path: '/explore', label: 'Trending', icon: <Flame /> },
     { path: '/mylist', label: 'My List', icon: <Bookmark /> },
     { path: '/downloads', label: 'Download', icon: <FolderDown /> },
     { path: '/profile', label: 'Profile', icon: <User /> }
+  ] : [
+    { path: '/', label: 'Home', icon: <HomeIcon /> },
+    { path: '/explore', label: 'Explore', icon: <Flame /> },
+    { path: '/auth', label: 'Sign In', icon: <User /> }
   ];
-
-  if (currentPath.startsWith('/player')) return null; // Hide on player screen
-  if (currentPath.startsWith('/admin')) return null; // Hide on admin screen
 
   return (
     <nav className="desktop-sidebar mobile-bottom-nav">
@@ -77,18 +80,15 @@ const MaintenanceScreen = ({ siteName }) => (
   </div>
 );
 
-const ProtectedRoutes = () => {
+const AppRoutes = () => {
   const { user } = useAppContext();
-  if (!user) return <Auth />;
 
   return (
     <>
       <Routes>
+        {/* Public — no login required */}
         <Route path="/" element={<Home />} />
         <Route path="/explore" element={<Explore />} />
-        <Route path="/mylist" element={<MyList />} />
-        <Route path="/downloads" element={<Downloads />} />
-        <Route path="/profile" element={<Profile />} />
         <Route path="/premium" element={<Premium />} />
         <Route path="/movie/:id" element={<MovieDetails />} />
         <Route path="/movie/:id/:slug" element={<MovieDetails />} />
@@ -96,8 +96,13 @@ const ProtectedRoutes = () => {
         <Route path="/player/:id" element={<Player />} />
         <Route path="/player/:id/:slug" element={<Player />} />
         <Route path="/player/:slug" element={<Player />} />
-        <Route path="/settings/:topic" element={<SettingsPage />} />
-        <Route path="/admin" element={<Admin />} />
+        <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth />} />
+        {/* Login-required */}
+        <Route path="/downloads" element={<Downloads />} />
+        <Route path="/mylist" element={user ? <MyList /> : <Navigate to="/auth" replace />} />
+        <Route path="/profile" element={user ? <Profile /> : <Navigate to="/auth" replace />} />
+        <Route path="/settings/:topic" element={user ? <SettingsPage /> : <Navigate to="/auth" replace />} />
+        <Route path="/admin" element={user?.role === 'admin' ? <Admin /> : <Navigate to="/" replace />} />
       </Routes>
       <BottomNav />
     </>
@@ -139,7 +144,7 @@ const AppContent = ({ showSplash, setShowSplash, maintenance }) => {
       {showSplash && <SplashScreen onFinish={() => setShowSplash(false)} />}
       <div className={(showSplash || isMaintenanceActive) ? 'fade-out' : ''}>
         <Router>
-          <ProtectedRoutes />
+          <AppRoutes />
         </Router>
       </div>
     </>

@@ -444,7 +444,7 @@ async function handleSignup(request, kv) {
 
     const userCount = (await kvGet(kv, 'user:count')) || 0;
     const id = crypto.randomUUID();
-    const user = { id, name, email: email.toLowerCase(), password: await hashPassword(password), role: userCount === 0 ? 'admin' : 'user', isPremium: false, createdAt: new Date().toISOString() };
+    const user = { id, name, email: email.toLowerCase(), password: await hashPassword(password), role: userCount === 0 ? 'admin' : 'user', isPremium: false, createdAt: new Date().toISOString(), downloadCount: 0, checkIns: [] };
 
     await kvSet(kv, `user:${email.toLowerCase()}`, user);
     await kvSet(kv, `userid:${id}`, email.toLowerCase());
@@ -501,22 +501,70 @@ async function getAuthUser(request, kv) {
     return kvGet(kv, `user:${email}`);
 }
 
+// ─── USER ACTIVITY HANDLERS ──────────────────────────────────────────────────
+
+async function handleTrackDownload(request, kv) {
+    const user = await getAuthUser(request, kv);
+    if (!user) return json({ status: 'error', message: 'Unauthorized' }, 401);
+    user.downloadCount = (user.downloadCount || 0) + 1;
+    await kvSet(kv, `user:${user.email}`, user);
+    return json({ status: 'success', data: { downloadCount: user.downloadCount } });
+}
+
+async function handleCheckIn(request, kv) {
+    const user = await getAuthUser(request, kv);
+    if (!user) return json({ status: 'error', message: 'Unauthorized' }, 401);
+    const today = new Date().toISOString().split('T')[0];
+    const checkIns = user.checkIns || [];
+    if (!checkIns.includes(today)) {
+        checkIns.push(today);
+        user.checkIns = checkIns;
+        await kvSet(kv, `user:${user.email}`, user);
+    }
+    return json({ status: 'success', data: { checkIns, lastCheckIn: today } });
+}
+
 // ─── ADMIN HANDLERS ───────────────────────────────────────────────────────────
 
 async function handleAdminStats(kv) {
     const count = (await kvGet(kv, 'user:count')) || 0;
     const ads = (await kvGet(kv, 'ads')) || [];
-    return json({ status: 'success', data: { totalUsers: count, premiumUsers: 0, revenue: 0, activeAds: ads.filter(a => a.active).length, recentSignups: [] } });
+    const index = (await kvGet(kv, 'user:index')) || [];
+    const allUsers = (await Promise.all(index.map(email => kvGet(kv, `user:${email}`)))).filter(Boolean);
+    const premiumUsers = allUsers.filter(u => u.isPremium).length;
+    const recentSignups = [...allUsers]
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        .slice(0, 5)
+        .map(u => ({ id: u.id, name: u.name, email: u.email, isPremium: u.isPremium, createdAt: u.createdAt }));
+    return json({ status: 'success', data: { totalUsers: count, premiumUsers, revenue: 0, activeAds: ads.filter(a => a.active).length, recentSignups } });
 }
 
 async function handleAdminUsers(kv) {
-    const count = (await kvGet(kv, 'user:count')) || 0;
-    // Scan known users by iterating stored index
     const index = (await kvGet(kv, 'user:index')) || [];
     const users = (await Promise.all(index.map(email => kvGet(kv, `user:${email}`))))
         .filter(Boolean)
-        .map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role, isPremium: u.isPremium, createdAt: u.createdAt }));
-    return json({ status: 'success', data: users, meta: { total: count } });
+        .map(u => ({
+            id: u.id, name: u.name, email: u.email, role: u.role, isPremium: u.isPremium, createdAt: u.createdAt,
+            downloadCount: u.downloadCount || 0,
+            checkIns: u.checkIns || [],
+            lastCheckIn: u.checkIns?.length ? u.checkIns[u.checkIns.length - 1] : null,
+        }));
+    return json({ status: 'success', data: users });
+}
+
+async function handleAdminPatchUser(request, kv, userId) {
+    const index = (await kvGet(kv, 'user:index')) || [];
+    let targetUser = null, targetEmail = null;
+    for (const email of index) {
+        const u = await kvGet(kv, `user:${email}`);
+        if (u && u.id === userId) { targetUser = u; targetEmail = email; break; }
+    }
+    if (!targetUser) return json({ status: 'error', message: 'User not found' }, 404);
+    const body = await request.json();
+    if (body.isPremium !== undefined) targetUser.isPremium = body.isPremium;
+    if (body.role !== undefined) targetUser.role = body.role;
+    await kvSet(kv, `user:${targetEmail}`, targetUser);
+    return json({ status: 'success', data: { id: targetUser.id, name: targetUser.name, email: targetUser.email, role: targetUser.role, isPremium: targetUser.isPremium } });
 }
 
 async function handleAdminAds(request, kv, method, adId) {
@@ -621,6 +669,10 @@ export default {
                 return json({ status: 'success', user: { id: user.id, name: user.name, email: user.email, role: user.role, isPremium: user.isPremium } });
             }
 
+            // User activity (requires auth)
+            if (path === '/api/user/track-download' && method === 'POST') return handleTrackDownload(request, kv);
+            if (path === '/api/user/checkin' && method === 'POST') return handleCheckIn(request, kv);
+
             // Admin (requires auth + admin role)
             if (path.startsWith('/api/admin/')) {
                 const user = await getAuthUser(request, kv);
@@ -629,6 +681,10 @@ export default {
 
                 if (path === '/api/admin/stats') return handleAdminStats(kv);
                 if (path === '/api/admin/users') return handleAdminUsers(kv);
+                if (path.startsWith('/api/admin/users/') && method === 'PATCH') {
+                    const userId = path.split('/api/admin/users/')[1];
+                    return handleAdminPatchUser(request, kv, userId);
+                }
                 if (path === '/api/admin/ads' || path.startsWith('/api/admin/ads/')) {
                     const adId = path.split('/api/admin/ads/')[1];
                     return handleAdminAds(request, kv, method, adId);

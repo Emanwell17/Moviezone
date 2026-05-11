@@ -3,6 +3,7 @@ import { Play, Search, Plus, Check, Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from './AppContext';
 import { fetchHomepage, fetchAds, getImageUrl } from './api';
+import logoSrc from './assets/logo.png';
 
 const Row = ({ title, movies, onMovieClick }) => {
   if (!movies?.length) return null;
@@ -94,7 +95,7 @@ export default function Home() {
 
         {/* Nav */}
         <div style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(to bottom, rgba(0,0,0,0.6), transparent)' }}>
-          <img src="/logo.png" style={{ height: 34, objectFit: 'contain' }} alt="MovieZone" />
+          <img src={logoSrc} style={{ height: 34, objectFit: 'contain' }} alt="MovieZone" />
           <Search color="white" size={22} style={{ cursor: 'pointer' }} onClick={() => navigate('/explore')} />
         </div>
 

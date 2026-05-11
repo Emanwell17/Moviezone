@@ -1,4 +1,5 @@
 import React from 'react';
+import logoSrc from './assets/logo.png';
 import { Search, Play, Trash2, List } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from './AppContext';
@@ -12,7 +13,7 @@ export default function MyList() {
       {/* Header */}
       <div className="header">
         <div className="header-title">
-          <img src="/logo.png" style={{ height: 28, width: 28, objectFit: 'contain', marginRight: 8 }} alt="M" /> My List
+          <img src={logoSrc} style={{ height: 28, width: 28, objectFit: 'contain', marginRight: 8 }} alt="M" /> My List
         </div>
         <Search className="icon" />
       </div>

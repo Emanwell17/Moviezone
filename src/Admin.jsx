@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import logoSrc from './assets/logo.png';
 import { 
   LayoutDashboard, 
   Users, 
@@ -139,7 +140,7 @@ const Admin = () => {
           <div style={{ backgroundColor: 'var(--primary-red)', padding: '8px', borderRadius: '8px' }}>
             <LayoutDashboard size={24} color="white" />
           </div>
-          <img src="/logo.png" style={{ height: 32, width: 32, objectFit: 'contain', marginRight: 12 }} alt="Logo" />
+          <img src={logoSrc} style={{ height: 32, width: 32, objectFit: 'contain', marginRight: 12 }} alt="Logo" />
           <span style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '1px' }}>MOVIEZONE ADM</span>
           
           <X 

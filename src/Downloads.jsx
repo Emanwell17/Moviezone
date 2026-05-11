@@ -1,4 +1,5 @@
 import React from 'react';
+import logoSrc from './assets/logo.png';
 import { Search, Play, Trash2, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from './AppContext';
@@ -13,7 +14,7 @@ export default function Downloads() {
       {/* Header */}
       <div className="header">
         <div className="header-title">
-          <img src="/logo.png" style={{ height: 28, width: 28, objectFit: 'contain', marginRight: 8 }} alt="M" /> Download
+          <img src={logoSrc} style={{ height: 28, width: 28, objectFit: 'contain', marginRight: 8 }} alt="M" /> Download
         </div>
         <Search className="icon" />
       </div>

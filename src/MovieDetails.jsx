@@ -82,9 +82,7 @@ const MovieDetails = () => {
       season: isSeries ? selectedSeason : null,
       episode: isSeries ? selectedEpisode : null,
     });
-    // Prefer direct CDN URL — avoids Worker streaming limits that cause ERR_INVALID_RESPONSE.
-    // Fall back to proxy URL if no direct URL is available.
-    window.open(src.directUrl || src.downloadUrl || src.streamUrl, '_blank');
+    window.open(src.downloadUrl || src.directUrl || src.streamUrl, '_blank');
     setShowDownloadMenu(false);
   };
 

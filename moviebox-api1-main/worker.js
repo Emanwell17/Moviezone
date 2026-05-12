@@ -406,11 +406,44 @@ async function handleStream(url, request) {
 async function handleDownload(url, request) {
     const u = new URL(url);
     const downloadUrl = u.searchParams.get('url');
+    const title = u.searchParams.get('title') || 'video';
+    const quality = u.searchParams.get('quality') || '';
+    const season = u.searchParams.get('season');
+    const episode = u.searchParams.get('episode');
     if (!downloadUrl) return json({ status: 'error', message: 'No url param' }, 400);
 
-    // Redirect browser directly to the CDN URL — avoids Worker streaming limits
-    // and VPN interference with proxied responses. Signed CDN URLs work in browsers.
-    return Response.redirect(downloadUrl, 302);
+    let filename = title.replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_');
+    if (season && episode) filename += `_S${String(season).padStart(2,'0')}E${String(episode).padStart(2,'0')}`;
+    if (quality) filename += `_${quality}p`;
+    filename += '.mp4';
+
+    const range = request.headers.get('range');
+    const headers = {
+        'User-Agent': 'okhttp/4.12.0',
+        'Referer': 'https://fmoviesunblocked.net/',
+        'Origin': 'https://fmoviesunblocked.net',
+        'Accept': '*/*',
+    };
+    if (range) headers['Range'] = range;
+
+    const upstream = await fetch(downloadUrl, { headers });
+
+    if (!upstream.ok && upstream.status !== 206) {
+        return json({ status: 'error', message: `CDN error ${upstream.status}` }, 502);
+    }
+
+    const responseHeaders = {
+        'Content-Type': upstream.headers.get('content-type') || 'video/mp4',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-store',
+    };
+    if (upstream.headers.get('content-range')) {
+        responseHeaders['Content-Range'] = upstream.headers.get('content-range');
+    }
+
+    return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
 }
 
 // ─── AUTH HANDLERS ────────────────────────────────────────────────────────────

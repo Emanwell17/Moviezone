@@ -421,14 +421,31 @@ async function handleDownload(url, request) {
     const headers = { 'User-Agent': 'okhttp/4.12.0', 'Referer': 'https://fmoviesunblocked.net/', 'Origin': 'https://fmoviesunblocked.net' };
     if (range) headers['Range'] = range;
 
-    const upstream = await fetch(downloadUrl, { headers });
+    let upstream;
+    try {
+        upstream = await fetch(downloadUrl, { headers });
+    } catch (e) {
+        return json({ status: 'error', message: 'CDN unreachable' }, 502);
+    }
+
+    // If CDN rejected the request, redirect browser directly to the CDN URL
+    if (!upstream.ok && upstream.status !== 206) {
+        return Response.redirect(downloadUrl, 302);
+    }
+
     const responseHeaders = cors({
         'Content-Type': upstream.headers.get('content-type') || 'video/mp4',
         'Content-Disposition': `attachment; filename="${filename}"`,
         'Accept-Ranges': 'bytes',
     });
-    if (upstream.headers.get('content-length')) responseHeaders['Content-Length'] = upstream.headers.get('content-length');
-    if (upstream.headers.get('content-range')) responseHeaders['Content-Range'] = upstream.headers.get('content-range');
+    // Only forward Content-Length for range requests — full-file streams may be cut off
+    // by Worker limits, causing ERR_INVALID_RESPONSE if length doesn't match body
+    if (range && upstream.headers.get('content-length')) {
+        responseHeaders['Content-Length'] = upstream.headers.get('content-length');
+    }
+    if (upstream.headers.get('content-range')) {
+        responseHeaders['Content-Range'] = upstream.headers.get('content-range');
+    }
 
     return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
 }

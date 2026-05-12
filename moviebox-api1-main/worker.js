@@ -388,9 +388,9 @@ async function handleSubtitles(url) {
     if (!title) return json({ status: 'success', data: [] });
 
     try {
-        const query = title.trim().replace(/\s+/g, '+');
+        const encodedQuery = title.trim().split(/\s+/).map(w => encodeURIComponent(w)).join('+');
         const r = await fetch(
-            `https://rest.opensubtitles.org/search/query-${encodeURIComponent(query)}`,
+            `https://rest.opensubtitles.org/search/query-${encodedQuery}`,
             { headers: { 'User-Agent': 'TemporaryUserAgent', 'X-User-Agent': 'TemporaryUserAgent' } }
         );
         if (!r.ok) return json({ status: 'success', data: [] });

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { Play, Plus, ArrowLeft, Star, Download, Check } from 'lucide-react';
+import { Play, Plus, ArrowLeft, Star, Download, Check, Languages } from 'lucide-react';
 import { useAppContext } from './AppContext';
-import { getImageUrl, fetchSources, fetchInfo } from './api';
+import { getImageUrl, fetchSources, fetchInfo, fetchSubtitles, getSubtitleSrtUrl } from './api';
 
 const MovieDetails = () => {
   const { id } = useParams();
@@ -59,6 +59,14 @@ const MovieDetails = () => {
   const inList = movie && isInMyList(movieboxId);
 
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [subtitles, setSubtitles] = useState([]);
+  const [showSubMenu, setShowSubMenu] = useState(false);
+
+  useEffect(() => {
+    if (!movie) return;
+    const title = movie.title || movie.name;
+    if (title) fetchSubtitles(title).then(setSubtitles);
+  }, [movie]);
 
   const handlePlay = () => {
     const base = `/player/${movieboxId}`;
@@ -170,6 +178,26 @@ const MovieDetails = () => {
               </div>
             )}
           </div>
+          {/* Subtitle download button */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowSubMenu(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#222', color: 'white', width: 50, height: '100%', minHeight: 48, borderRadius: 15, border: 'none', cursor: 'pointer' }}>
+              <Languages size={20} />
+            </button>
+            {showSubMenu && (
+              <div style={{ position: 'absolute', bottom: '110%', right: 0, background: '#1a1a1a', borderRadius: 12, padding: '8px 0', minWidth: 160, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.8)', border: '1px solid #333', zIndex: 100 }}>
+                <p style={{ padding: '4px 16px', fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Download Subtitles</p>
+                {subtitles.length === 0 && <div style={{ padding: '11px 16px', fontSize: 13, color: '#666' }}>No subtitles found</div>}
+                {subtitles.map(s => (
+                  <div key={s.lang} onClick={() => { window.open(getSubtitleSrtUrl(s.downloadLink), '_blank'); setShowSubMenu(false); }}
+                    style={{ padding: '11px 16px', cursor: 'pointer', fontSize: 14, color: '#fff' }}>
+                    {s.langName}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button onClick={handleMyList}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: inList ? '#1db954' : '#222', color: 'white', width: 50, borderRadius: 15, border: 'none', cursor: 'pointer' }}>
             {inList ? <Check size={20} /> : <Plus size={20} />}

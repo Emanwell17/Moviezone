@@ -1,4 +1,4 @@
-const API = 'https://moviezone-end.scorezone.workers.dev';
+export const API = 'https://moviezone-end.scorezone.workers.dev';
 
 const normalizeMovie = (m) => ({
   id: String(m.subjectId || m.id || ''),
@@ -133,6 +133,21 @@ export const resolveMovieBoxId = async (id, titleHint = '') => {
   }
   return String(id);
 };
+
+// --- SUBTITLES ---
+export const fetchSubtitles = async (title) => {
+  try {
+    const res = await fetch(`${API}/api/subtitles?title=${encodeURIComponent(title)}`);
+    const json = await res.json();
+    return json.data || [];
+  } catch { return []; }
+};
+
+export const getSubtitleVttUrl = (downloadLink) =>
+  `${API}/api/subtitle-proxy?url=${encodeURIComponent(downloadLink)}`;
+
+export const getSubtitleSrtUrl = (downloadLink) =>
+  `${API}/api/subtitle-proxy?url=${encodeURIComponent(downloadLink)}&format=srt`;
 
 // --- AUTH ---
 const getToken = () => localStorage.getItem('token');

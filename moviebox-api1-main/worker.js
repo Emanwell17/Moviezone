@@ -382,6 +382,91 @@ async function handleSources(movieId, url, request) {
     return json({ status: 'success', data: { ...dlData, processedSources } });
 }
 
+async function handleSubtitles(url) {
+    const u = new URL(url);
+    const title = u.searchParams.get('title') || '';
+    if (!title) return json({ status: 'success', data: [] });
+
+    try {
+        const query = title.trim().replace(/\s+/g, '+');
+        const r = await fetch(
+            `https://rest.opensubtitles.org/search/query-${encodeURIComponent(query)}`,
+            { headers: { 'User-Agent': 'TemporaryUserAgent', 'X-User-Agent': 'TemporaryUserAgent' } }
+        );
+        if (!r.ok) return json({ status: 'success', data: [] });
+        const data = await r.json();
+        if (!Array.isArray(data)) return json({ status: 'success', data: [] });
+
+        // Pick best-rated subtitle per language
+        const byLang = {};
+        for (const s of data) {
+            const lang = s.ISO639;
+            if (!lang) continue;
+            if (!byLang[lang] || parseFloat(s.SubRating) > parseFloat(byLang[lang].SubRating)) {
+                byLang[lang] = s;
+            }
+        }
+
+        const subs = Object.values(byLang).map(s => ({
+            lang: s.ISO639,
+            langName: s.LanguageName,
+            downloadLink: s.SubDownloadLink,
+            fileName: s.SubFileName,
+            rating: s.SubRating,
+        })).sort((a, b) => a.langName.localeCompare(b.langName));
+
+        return json({ status: 'success', data: subs });
+    } catch { return json({ status: 'success', data: [] }); }
+}
+
+async function handleSubtitleProxy(url) {
+    const u = new URL(url);
+    const subUrl = u.searchParams.get('url');
+    const format = u.searchParams.get('format') || 'vtt';
+    if (!subUrl) return json({ status: 'error', message: 'url required' }, 400);
+
+    try {
+        const r = await fetch(subUrl, { headers: { 'User-Agent': 'TemporaryUserAgent', 'X-User-Agent': 'TemporaryUserAgent' } });
+        if (!r.ok) return json({ status: 'error', message: 'Failed to fetch subtitle' }, 502);
+
+        // Decompress gzip (OpenSubtitles files are always gzipped)
+        let srtContent;
+        try {
+            const ds = new DecompressionStream('gzip');
+            const decompressed = r.body.pipeThrough(ds);
+            const reader = decompressed.getReader();
+            const chunks = [];
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+            }
+            const total = chunks.reduce((n, c) => n + c.length, 0);
+            const buf = new Uint8Array(total);
+            let offset = 0;
+            for (const c of chunks) { buf.set(c, offset); offset += c.length; }
+            srtContent = new TextDecoder('utf-8').decode(buf);
+        } catch {
+            srtContent = await r.text();
+        }
+
+        if (format === 'srt') {
+            return new Response(srtContent, {
+                headers: cors({ 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': 'attachment; filename="subtitle.srt"' }),
+            });
+        }
+
+        // Convert SRT → WebVTT
+        const vtt = 'WEBVTT\n\n' + srtContent
+            .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+            .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
+
+        return new Response(vtt, {
+            headers: cors({ 'Content-Type': 'text/vtt; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }),
+        });
+    } catch (e) { return json({ status: 'error', message: e.message }, 500); }
+}
+
 async function handleStream(url, request) {
     const u = new URL(url);
     const streamUrl = u.searchParams.get('url');
@@ -654,6 +739,8 @@ export default {
             if (path.startsWith('/api/sources/')) return handleSources(path.split('/api/sources/')[1], request.url, request);
             if (path === '/api/stream') return handleStream(request.url, request);
             if (path === '/api/download') return handleDownload(request.url, request);
+            if (path === '/api/subtitles') return handleSubtitles(request.url);
+            if (path === '/api/subtitle-proxy') return handleSubtitleProxy(request.url);
 
             // Bootstrap admin (run once to seed admin account)
             if (path === '/api/bootstrap' && method === 'GET') return bootstrapAdmin(kv);

@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Play, Pause, Maximize, Minimize, RotateCcw, RotateCw, Volume2, VolumeX, Download } from 'lucide-react';
+import { ArrowLeft, Play, Pause, Maximize, Minimize, RotateCcw, RotateCw, Volume2, VolumeX, Download, Languages } from 'lucide-react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { fetchSources, fetchAds, fetchInfo } from './api';
+import { fetchSources, fetchAds, fetchInfo, fetchSubtitles, getSubtitleVttUrl } from './api';
 import { useAppContext } from './AppContext';
 
 const loadHls = () => new Promise((resolve) => {
@@ -58,6 +58,9 @@ export default function Player() {
   const [isMuted, setIsMuted] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [showSubMenu, setShowSubMenu] = useState(false);
+  const [subtitles, setSubtitles] = useState([]);
+  const [activeSub, setActiveSub] = useState(null);
   const [isForcedLandscape, setIsForcedLandscape] = useState(false);
   const [loading, setLoading] = useState(true);
   const [buffering, setBuffering] = useState(false);
@@ -149,6 +152,34 @@ export default function Player() {
     };
     load();
   }, [id, effectiveSeason, effectiveEpisode, isPremium, retryCount]);
+
+  // Fetch subtitles when title is known
+  useEffect(() => {
+    if (!title) return;
+    fetchSubtitles(title).then(subs => setSubtitles(subs));
+  }, [title]);
+
+  // Apply subtitle track to video
+  useEffect(() => {
+    if (!videoRef.current) return;
+    const video = videoRef.current;
+    video.querySelectorAll('track').forEach(t => t.remove());
+    if (!activeSub) return;
+    const track = document.createElement('track');
+    track.kind = 'subtitles';
+    track.src = getSubtitleVttUrl(activeSub.downloadLink);
+    track.srclang = activeSub.lang;
+    track.label = activeSub.langName;
+    video.appendChild(track);
+    const enable = () => {
+      for (const t of video.textTracks) {
+        t.mode = t.label === activeSub.langName ? 'showing' : 'disabled';
+      }
+    };
+    track.addEventListener('load', enable);
+    setTimeout(enable, 500);
+    return () => { track.removeEventListener('load', enable); if (video.contains(track)) video.removeChild(track); };
+  }, [activeSub, videoReady]);
 
   // Setup HLS / direct video
   useEffect(() => {
@@ -520,9 +551,33 @@ export default function Player() {
                   )}
                 </div>
 
+                {/* Subtitle button */}
+                <div style={{ position: 'relative' }}>
+                  <button onClick={() => { setShowSubMenu(v => !v); setShowQualityMenu(false); setShowDownloadMenu(false); }}
+                    style={{ background: activeSub ? 'var(--primary-red)' : 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', cursor: 'pointer', padding: '5px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
+                    <Languages size={16} />
+                  </button>
+                  {showSubMenu && (
+                    <div style={{ position: 'absolute', top: 38, right: 0, background: '#1a1a1a', borderRadius: 10, padding: '8px 0', minWidth: 160, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,0.7)', border: '1px solid #333', zIndex: 60 }}>
+                      <p style={{ padding: '4px 16px', fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Subtitles</p>
+                      <div onClick={() => { setActiveSub(null); setShowSubMenu(false); }}
+                        style={{ padding: '11px 16px', cursor: 'pointer', fontSize: 14, color: !activeSub ? 'var(--primary-red)' : '#fff', fontWeight: !activeSub ? 700 : 400 }}>
+                        Off
+                      </div>
+                      {subtitles.length === 0 && <div style={{ padding: '8px 16px', fontSize: 12, color: '#666' }}>No subtitles found</div>}
+                      {subtitles.map(s => (
+                        <div key={s.lang} onClick={() => { setActiveSub(s); setShowSubMenu(false); }}
+                          style={{ padding: '11px 16px', cursor: 'pointer', fontSize: 14, color: activeSub?.lang === s.lang ? 'var(--primary-red)' : '#fff', fontWeight: activeSub?.lang === s.lang ? 700 : 400 }}>
+                          {s.langName}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {/* Quality button */}
                 <div style={{ position: 'relative' }}>
-                  <button onClick={() => { setShowQualityMenu(v => !v); setShowDownloadMenu(false); }}
+                  <button onClick={() => { setShowQualityMenu(v => !v); setShowDownloadMenu(false); setShowSubMenu(false); }}
                     style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', cursor: 'pointer', padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 700, backdropFilter: 'blur(4px)', whiteSpace: 'nowrap' }}>
                     {quality}p
                   </button>

@@ -380,9 +380,7 @@ export default function Player() {
 
   const handleDownload = (src) => {
     addDownload({ id, title, imgUrl: '', quality: src.quality, size: src.size || '' });
-    const a = document.createElement('a');
-    a.href = src.downloadUrl || src.streamUrl; a.download = '';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    window.open(src.downloadUrl || src.streamUrl, '_blank');
     setShowDownloadMenu(false);
   };
 

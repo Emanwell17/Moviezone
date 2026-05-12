@@ -63,8 +63,16 @@ export const AppProvider = ({ children }) => {
         });
     };
 
+    const removeDownload = (id) => {
+        setDownloads(prev => {
+            const updated = prev.filter(d => d.id !== id);
+            localStorage.setItem('downloads', JSON.stringify(updated));
+            return updated;
+        });
+    };
+
     return (
-        <AppContext.Provider value={{ user, setUser, favorites, setFavorites, login, logout, myList, addToMyList, removeFromMyList, isInMyList, downloads, addDownload, isPremium }}>
+        <AppContext.Provider value={{ user, setUser, favorites, setFavorites, login, logout, myList, addToMyList, removeFromMyList, isInMyList, downloads, addDownload, removeDownload, isPremium }}>
             {children}
         </AppContext.Provider>
     );

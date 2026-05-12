@@ -82,9 +82,7 @@ const MovieDetails = () => {
       season: isSeries ? selectedSeason : null,
       episode: isSeries ? selectedEpisode : null,
     });
-    const a = document.createElement('a');
-    a.href = src.downloadUrl || src.streamUrl; a.download = '';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    window.open(src.downloadUrl || src.streamUrl, '_blank');
     setShowDownloadMenu(false);
   };
 

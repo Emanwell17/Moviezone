@@ -406,48 +406,11 @@ async function handleStream(url, request) {
 async function handleDownload(url, request) {
     const u = new URL(url);
     const downloadUrl = u.searchParams.get('url');
-    const title = u.searchParams.get('title') || 'video';
-    const quality = u.searchParams.get('quality') || '';
-    const season = u.searchParams.get('season');
-    const episode = u.searchParams.get('episode');
     if (!downloadUrl) return json({ status: 'error', message: 'No url param' }, 400);
 
-    let filename = title.replace(/[<>:"/\\|?*]/g, '').replace(/\s+/g, '_');
-    if (season && episode) filename += `_S${String(season).padStart(2,'0')}E${String(episode).padStart(2,'0')}`;
-    if (quality) filename += `_${quality}p`;
-    filename += '.mp4';
-
-    const range = request.headers.get('range');
-    const headers = { 'User-Agent': 'okhttp/4.12.0', 'Referer': 'https://fmoviesunblocked.net/', 'Origin': 'https://fmoviesunblocked.net' };
-    if (range) headers['Range'] = range;
-
-    let upstream;
-    try {
-        upstream = await fetch(downloadUrl, { headers });
-    } catch (e) {
-        return json({ status: 'error', message: 'CDN unreachable' }, 502);
-    }
-
-    // If CDN rejected the request, redirect browser directly to the CDN URL
-    if (!upstream.ok && upstream.status !== 206) {
-        return Response.redirect(downloadUrl, 302);
-    }
-
-    const responseHeaders = cors({
-        'Content-Type': upstream.headers.get('content-type') || 'video/mp4',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Accept-Ranges': 'bytes',
-    });
-    // Only forward Content-Length for range requests — full-file streams may be cut off
-    // by Worker limits, causing ERR_INVALID_RESPONSE if length doesn't match body
-    if (range && upstream.headers.get('content-length')) {
-        responseHeaders['Content-Length'] = upstream.headers.get('content-length');
-    }
-    if (upstream.headers.get('content-range')) {
-        responseHeaders['Content-Range'] = upstream.headers.get('content-range');
-    }
-
-    return new Response(upstream.body, { status: upstream.status, headers: responseHeaders });
+    // Redirect browser directly to the CDN URL — avoids Worker streaming limits
+    // and VPN interference with proxied responses. Signed CDN URLs work in browsers.
+    return Response.redirect(downloadUrl, 302);
 }
 
 // ─── AUTH HANDLERS ────────────────────────────────────────────────────────────

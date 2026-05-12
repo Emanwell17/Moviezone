@@ -11,7 +11,7 @@ A modern movie and TV series streaming platform with real-time content from Movi
 - 💾 Download movies in multiple qualities
 - 👤 User authentication and premium features
 - 🎯 Genre-based browsing
-- ⚡ Fast streaming with HLS support
+- ⚡ Fast streaming with HLS support 
 
 ## 🚀 Quick Start
 

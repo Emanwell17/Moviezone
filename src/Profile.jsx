@@ -21,7 +21,7 @@ export default function Profile() {
   const { isPremium, user } = useAppContext();
 
   return (
-    <div className="page-container" style={{ padding: '24px 20px', paddingBottom: 100 }}>
+    <div className="page-container" style={{ paddingTop: 24, paddingLeft: 20, paddingRight: 20 }}>
       {/* Avatar + Name */}
       <div style={{ textAlign: 'center', marginTop: 24, marginBottom: 32 }}>
         <div style={{ position: 'relative', width: 100, margin: '0 auto 16px' }}>

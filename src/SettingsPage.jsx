@@ -96,17 +96,17 @@ export default function SettingsPage() {
   };
   
   return (
-    <div className="page-container" style={{ padding: '24px 20px', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="page-container" style={{ paddingTop: 24, paddingLeft: 20, paddingRight: 20 }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 32 }}>
         <ArrowLeft onClick={() => navigate(-1)} style={{ cursor: 'pointer', marginRight: 16 }} />
         <h2 style={{ fontSize: 20, fontWeight: 700 }}>{topic} Settings</h2>
       </div>
 
-      <div style={{ flex: 1 }}>
+      <div>
         {renderContent()}
       </div>
 
-      <div style={{ marginTop: 'auto', paddingTop: 20 }}>
+      <div style={{ marginTop: 32 }}>
         <button onClick={() => { logout(); navigate('/'); }} className="button-primary" style={{ backgroundColor: '#ff3b3b', width: '100%' }}>
           Logout
         </button>

@@ -7,7 +7,7 @@ Your MovieZone app is now configured to use your deployed API at:
 
 ## 🎯 What You Need to Do Now
 
-### Step 1: Test Locally
+### Step 1: Test Locally 
 
 ```bash
 # Make sure you're in the project directory

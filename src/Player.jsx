@@ -167,7 +167,7 @@ export default function Player() {
     if (!activeSub) return;
     const track = document.createElement('track');
     track.kind = 'subtitles';
-    track.src = getSubtitleVttUrl(activeSub.downloadLink);
+    track.src = getSubtitleVttUrl(activeSub.fileId);
     track.srclang = activeSub.lang;
     track.label = activeSub.langName;
     video.appendChild(track);

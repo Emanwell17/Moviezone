@@ -382,72 +382,85 @@ async function handleSources(movieId, url, request) {
     return json({ status: 'success', data: { ...dlData, processedSources } });
 }
 
+const LANG_NAMES = {
+    'en': 'English', 'fr': 'French', 'es': 'Spanish', 'de': 'German',
+    'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'ja': 'Japanese',
+    'ko': 'Korean', 'zh-CN': 'Chinese (Simplified)', 'zh-TW': 'Chinese (Traditional)',
+    'ar': 'Arabic', 'hi': 'Hindi', 'nl': 'Dutch', 'pl': 'Polish',
+    'tr': 'Turkish', 'sv': 'Swedish', 'da': 'Danish', 'fi': 'Finnish',
+    'no': 'Norwegian', 'cs': 'Czech', 'hu': 'Hungarian', 'ro': 'Romanian',
+    'bg': 'Bulgarian', 'hr': 'Croatian', 'sk': 'Slovak', 'sl': 'Slovenian',
+    'uk': 'Ukrainian', 'he': 'Hebrew', 'id': 'Indonesian', 'ms': 'Malay',
+    'th': 'Thai', 'vi': 'Vietnamese', 'el': 'Greek', 'sr': 'Serbian',
+    'ca': 'Catalan', 'lt': 'Lithuanian', 'lv': 'Latvian', 'et': 'Estonian',
+};
+
 async function handleSubtitles(url) {
     const u = new URL(url);
     const title = u.searchParams.get('title') || '';
     if (!title) return json({ status: 'success', data: [] });
 
     try {
-        const encodedQuery = title.trim().split(/\s+/).map(w => encodeURIComponent(w)).join('+');
         const r = await fetch(
-            `https://rest.opensubtitles.org/search/query-${encodedQuery}`,
-            { headers: { 'User-Agent': 'TemporaryUserAgent', 'X-User-Agent': 'TemporaryUserAgent' } }
+            `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(title)}&per_page=60`,
+            { headers: { 'Content-Type': 'application/json', 'User-Agent': 'MovieZone v1.0' } }
         );
         if (!r.ok) return json({ status: 'success', data: [] });
         const data = await r.json();
-        if (!Array.isArray(data)) return json({ status: 'success', data: [] });
+        if (!Array.isArray(data?.data)) return json({ status: 'success', data: [] });
 
         // Pick best-rated subtitle per language
         const byLang = {};
-        for (const s of data) {
-            const lang = s.ISO639;
-            if (!lang) continue;
-            if (!byLang[lang] || parseFloat(s.SubRating) > parseFloat(byLang[lang].SubRating)) {
-                byLang[lang] = s;
+        for (const item of data.data) {
+            const attrs = item.attributes;
+            const lang = attrs.language;
+            const fileId = attrs.files?.[0]?.file_id;
+            if (!lang || !fileId) continue;
+            const rating = attrs.ratings || 0;
+            if (!byLang[lang] || rating > (byLang[lang].rating || 0)) {
+                byLang[lang] = { lang, fileId, rating };
             }
         }
 
         const subs = Object.values(byLang).map(s => ({
-            lang: s.ISO639,
-            langName: s.LanguageName,
-            downloadLink: s.SubDownloadLink,
-            fileName: s.SubFileName,
-            rating: s.SubRating,
+            lang: s.lang,
+            langName: LANG_NAMES[s.lang] || s.lang.toUpperCase(),
+            fileId: s.fileId,
         })).sort((a, b) => a.langName.localeCompare(b.langName));
 
         return json({ status: 'success', data: subs });
     } catch { return json({ status: 'success', data: [] }); }
 }
 
-async function handleSubtitleProxy(url) {
+async function handleSubtitleProxy(url, kv) {
     const u = new URL(url);
-    const subUrl = u.searchParams.get('url');
+    const fileId = u.searchParams.get('fileId');
     const format = u.searchParams.get('format') || 'vtt';
-    if (!subUrl) return json({ status: 'error', message: 'url required' }, 400);
+    if (!fileId) return json({ status: 'error', message: 'fileId required' }, 400);
 
     try {
-        const r = await fetch(subUrl, { headers: { 'User-Agent': 'TemporaryUserAgent', 'X-User-Agent': 'TemporaryUserAgent' } });
-        if (!r.ok) return json({ status: 'error', message: 'Failed to fetch subtitle' }, 502);
+        // Check KV cache first (avoids hitting rate limits)
+        const cacheKey = `subtitle:${fileId}`;
+        let srtContent = kv ? await kv.get(cacheKey) : null;
 
-        // Decompress gzip (OpenSubtitles files are always gzipped)
-        let srtContent;
-        try {
-            const ds = new DecompressionStream('gzip');
-            const decompressed = r.body.pipeThrough(ds);
-            const reader = decompressed.getReader();
-            const chunks = [];
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                chunks.push(value);
-            }
-            const total = chunks.reduce((n, c) => n + c.length, 0);
-            const buf = new Uint8Array(total);
-            let offset = 0;
-            for (const c of chunks) { buf.set(c, offset); offset += c.length; }
-            srtContent = new TextDecoder('utf-8').decode(buf);
-        } catch {
+        if (!srtContent) {
+            // Get a temporary download link from OpenSubtitles
+            const dlRes = await fetch('https://api.opensubtitles.com/api/v1/download', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'User-Agent': 'MovieZone v1.0' },
+                body: JSON.stringify({ file_id: parseInt(fileId) }),
+            });
+            if (!dlRes.ok) return json({ status: 'error', message: 'Download link failed' }, 502);
+            const dlData = await dlRes.json();
+            if (!dlData.link) return json({ status: 'error', message: 'No download link' }, 502);
+
+            // Fetch the actual subtitle file
+            const r = await fetch(dlData.link, { headers: { 'User-Agent': 'MovieZone v1.0' } });
+            if (!r.ok) return json({ status: 'error', message: 'Failed to fetch subtitle' }, 502);
             srtContent = await r.text();
+
+            // Cache for 7 days
+            if (kv) await kv.put(cacheKey, srtContent, { expirationTtl: 604800 });
         }
 
         if (format === 'srt') {
@@ -740,7 +753,7 @@ export default {
             if (path === '/api/stream') return handleStream(request.url, request);
             if (path === '/api/download') return handleDownload(request.url, request);
             if (path === '/api/subtitles') return handleSubtitles(request.url);
-            if (path === '/api/subtitle-proxy') return handleSubtitleProxy(request.url);
+            if (path === '/api/subtitle-proxy') return handleSubtitleProxy(request.url, kv);
 
             // Bootstrap admin (run once to seed admin account)
             if (path === '/api/bootstrap' && method === 'GET') return bootstrapAdmin(kv);

@@ -5,7 +5,7 @@
 ### 1. API Configuration ✅
 - **Hardcoded API URL**: `https://moviezone-api.onrender.com/api`
 - **Location**: `src/api.js`
-- **No environment variables needed**
+- **No environment variables needed** 
 - **All localhost references removed**
 
 ### 2. Streaming Configuration ✅

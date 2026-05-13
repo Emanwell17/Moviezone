@@ -382,6 +382,37 @@ async function handleSources(movieId, url, request) {
     return json({ status: 'success', data: { ...dlData, processedSources } });
 }
 
+async function handleDebugSubtitles(url) {
+    const u = new URL(url);
+    const mbId = u.searchParams.get('id');
+    const season = u.searchParams.get('season') || 0;
+    const episode = u.searchParams.get('episode') || 0;
+    if (!mbId) return json({ status: 'error', message: 'id required' }, 400);
+
+    const results = {};
+
+    // Try common MovieBox subtitle endpoint patterns
+    const endpoints = [
+        `/wefeed-h5-bff/web/subject/subtitle?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
+        `/wefeed-h5-bff/web/subject/caption?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
+        `/wefeed-h5-bff/web/subject/cc?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
+        `/wefeed-h5-bff/web/subject/subtitles?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
+        `/wefeed-h5-bff/web/subject/download?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
+    ];
+
+    for (const endpoint of endpoints) {
+        try {
+            const r = await apiRequest(`${HOST_URL}${endpoint}`);
+            const data = await r.json();
+            results[endpoint] = { status: r.status, data };
+        } catch (e) {
+            results[endpoint] = { error: e.message };
+        }
+    }
+
+    return json({ status: 'success', data: results });
+}
+
 const LANG_NAMES = {
     'en': 'English', 'fr': 'French', 'es': 'Spanish', 'de': 'German',
     'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'ja': 'Japanese',
@@ -752,6 +783,7 @@ export default {
             if (path.startsWith('/api/sources/')) return handleSources(path.split('/api/sources/')[1], request.url, request);
             if (path === '/api/stream') return handleStream(request.url, request);
             if (path === '/api/download') return handleDownload(request.url, request);
+            if (path === '/api/debug-subtitles') return handleDebugSubtitles(request.url);
             if (path === '/api/subtitles') return handleSubtitles(request.url);
             if (path === '/api/subtitle-proxy') return handleSubtitleProxy(request.url, kv);
 

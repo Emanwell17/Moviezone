@@ -166,7 +166,7 @@ const MovieDetails = () => {
               <Download size={20} />
             </button>
             {showDownloadMenu && sources.length > 0 && (
-              <div style={{ position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', borderRadius: 12, padding: '8px 0', minWidth: 150, boxShadow: '0 8px 32px rgba(0,0,0,0.8)', border: '1px solid #333', zIndex: 100 }}>
+              <div style={{ position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', borderRadius: 12, padding: '8px 0', minWidth: 170, boxShadow: '0 8px 32px rgba(0,0,0,0.8)', border: '1px solid #333', zIndex: 100 }}>
                 <p style={{ padding: '4px 16px', fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Download Quality</p>
                 {[...sources].sort((a, b) => Number(b.quality) - Number(a.quality)).map(s => (
                   <div key={s.quality} onClick={() => handleDownload(s)}
@@ -175,6 +175,9 @@ const MovieDetails = () => {
                     {s.size && <span style={{ fontSize: 11, color: '#888' }}>{s.size}</span>}
                   </div>
                 ))}
+                <div style={{ margin: '6px 12px 4px', padding: '8px 10px', background: 'rgba(255,255,255,0.05)', borderRadius: 8, fontSize: 11, color: '#888', lineHeight: 1.4 }}>
+                  💡 Use the 🌐 button to download subtitles separately. Open both in VLC or MX Player.
+                </div>
               </div>
             )}
           </div>
@@ -189,7 +192,7 @@ const MovieDetails = () => {
                 <p style={{ padding: '4px 16px', fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Download Subtitles</p>
                 {subtitles.length === 0 && <div style={{ padding: '11px 16px', fontSize: 13, color: '#666' }}>No subtitles found</div>}
                 {subtitles.map(s => (
-                  <div key={s.lang} onClick={() => { window.open(getSubtitleSrtUrl(s.slug), '_blank'); setShowSubMenu(false); }}
+                  <div key={s.slug} onClick={() => { window.open(getSubtitleSrtUrl(s.slug), '_blank'); setShowSubMenu(false); }}
                     style={{ padding: '11px 16px', cursor: 'pointer', fontSize: 14, color: '#fff' }}>
                     {s.langName}
                   </div>

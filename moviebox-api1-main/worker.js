@@ -439,6 +439,18 @@ async function handleSubtitles(url) {
         const html = await yifyRes.text();
 
         // Step 3: Extract one subtitle slug per language from the page
+        const LANG_CODES = {
+            'arabic': 'ar', 'bulgarian': 'bg', 'chinese': 'zh', 'croatian': 'hr',
+            'czech': 'cs', 'danish': 'da', 'dutch': 'nl', 'english': 'en',
+            'estonian': 'et', 'farsi': 'fa', 'persian': 'fa', 'finnish': 'fi',
+            'french': 'fr', 'german': 'de', 'greek': 'el', 'hebrew': 'he',
+            'hungarian': 'hu', 'indonesian': 'id', 'italian': 'it', 'japanese': 'ja',
+            'korean': 'ko', 'latvian': 'lv', 'lithuanian': 'lt', 'macedonian': 'mk',
+            'malay': 'ms', 'norwegian': 'no', 'polish': 'pl', 'portuguese': 'pt',
+            'romanian': 'ro', 'russian': 'ru', 'serbian': 'sr', 'slovak': 'sk',
+            'slovenian': 'sl', 'spanish': 'es', 'swedish': 'sv', 'thai': 'th',
+            'turkish': 'tr', 'ukrainian': 'uk', 'vietnamese': 'vi',
+        };
         const slugRegex = /href="\/subtitles\/([^"]+)"/g;
         const byLang = {};
         let match;
@@ -449,7 +461,9 @@ async function handleSubtitles(url) {
             if (!langMatch) continue;
             const langSlug = langMatch[2];
             const langName = langSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-            if (!byLang[langName]) byLang[langName] = { langName, slug };
+            const firstWord = langSlug.split('-')[0].toLowerCase();
+            const lang = LANG_CODES[firstWord] || firstWord.substring(0, 2);
+            if (!byLang[langName]) byLang[langName] = { lang, langName, slug };
         }
 
         const subs = Object.values(byLang).sort((a, b) => a.langName.localeCompare(b.langName));

@@ -168,7 +168,7 @@ export default function Player() {
     const track = document.createElement('track');
     track.kind = 'subtitles';
     track.src = getSubtitleVttUrl(activeSub.slug);
-    track.srclang = activeSub.lang;
+    track.srclang = activeSub.lang || 'und';
     track.label = activeSub.langName;
     video.appendChild(track);
     const enable = () => {
@@ -464,6 +464,7 @@ export default function Player() {
       {!loading && !error && (
         <>
           <video ref={videoCallbackRef}
+            crossOrigin="anonymous"
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             onTimeUpdate={() => {
               if (!videoRef.current) return;
@@ -566,8 +567,8 @@ export default function Player() {
                       </div>
                       {subtitles.length === 0 && <div style={{ padding: '8px 16px', fontSize: 12, color: '#666' }}>No subtitles found</div>}
                       {subtitles.map(s => (
-                        <div key={s.lang} onClick={() => { setActiveSub(s); setShowSubMenu(false); }}
-                          style={{ padding: '11px 16px', cursor: 'pointer', fontSize: 14, color: activeSub?.lang === s.lang ? 'var(--primary-red)' : '#fff', fontWeight: activeSub?.lang === s.lang ? 700 : 400 }}>
+                        <div key={s.slug} onClick={() => { setActiveSub(s); setShowSubMenu(false); }}
+                          style={{ padding: '11px 16px', cursor: 'pointer', fontSize: 14, color: activeSub?.slug === s.slug ? 'var(--primary-red)' : '#fff', fontWeight: activeSub?.slug === s.slug ? 700 : 400 }}>
                           {s.langName}
                         </div>
                       ))}

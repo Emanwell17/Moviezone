@@ -464,12 +464,20 @@ async function handleSubtitleProxy(url, kv) {
     if (!slug) return json({ status: 'error', message: 'slug required' }, 400);
 
     try {
-        // Fetch ZIP from YIFY and extract SRT
-        const zipRes = await fetch(
-            `https://yifysubtitles.ch/subtitle/${slug}.zip`,
-            { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
-        );
-        if (!zipRes.ok) return json({ status: 'error', message: 'Failed to fetch subtitle' }, 502);
+        // Fetch ZIP from YIFY — must include Referer and browser headers to avoid 403
+        const browserHeaders = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Referer': `https://yifysubtitles.ch/subtitles/${slug}`,
+            'Accept': 'application/zip,application/octet-stream,*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'same-origin',
+        };
+        let zipRes = await fetch(`https://yifysubtitles.ch/subtitle/${slug}.zip`, { headers: browserHeaders });
+        // Try .com mirror if .ch fails
+        if (!zipRes.ok) zipRes = await fetch(`https://yifysubtitles.com/subtitle/${slug}.zip`, { headers: { ...browserHeaders, 'Referer': `https://yifysubtitles.com/subtitles/${slug}` } });
+        if (!zipRes.ok) return json({ status: 'error', message: `Subtitle fetch failed: ${zipRes.status}` }, 502);
         const zipBuffer = await zipRes.arrayBuffer();
         const srtContent = await extractSrtFromZip(zipBuffer);
 

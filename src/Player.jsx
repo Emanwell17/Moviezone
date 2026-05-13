@@ -21,7 +21,7 @@ const fmt = (t) => {
 export default function Player() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { isPremium, addDownload } = useAppContext();
+  const { user, isPremium, addDownload } = useAppContext();
   const location = useLocation();
 
   const containerRef = useRef(null);
@@ -58,6 +58,7 @@ export default function Player() {
   const [isMuted, setIsMuted] = useState(false);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [showSubMenu, setShowSubMenu] = useState(false);
   const [subtitles, setSubtitles] = useState([]);
   const [activeSub, setActiveSub] = useState(null);
@@ -534,7 +535,7 @@ export default function Player() {
 
                 {/* Download button */}
                 <div style={{ position: 'relative' }}>
-                  <button onClick={() => { setShowDownloadMenu(v => !v); setShowQualityMenu(false); }}
+                  <button onClick={() => { if (!user) { setShowLoginPrompt(true); return; } setShowDownloadMenu(v => !v); setShowQualityMenu(false); }}
                     style={{ background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', cursor: 'pointer', padding: '5px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', backdropFilter: 'blur(4px)' }}>
                     <Download size={16} />
                   </button>
@@ -659,6 +660,34 @@ export default function Player() {
             <button onClick={() => setActiveAd(null)}
               style={{ position: 'absolute', top: 10, right: 10, background: 'rgba(0,0,0,0.75)', border: 'none', color: '#fff', padding: '5px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12 }}>
               Skip ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Login required prompt */}
+      {showLoginPrompt && (
+        <div onClick={() => setShowLoginPrompt(false)}
+          style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 480, background: '#1a1a1a', borderRadius: '24px 24px 0 0', padding: '32px 24px 40px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ width: 40, height: 4, background: '#333', borderRadius: 2, margin: '0 auto 24px' }} />
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(229,9,20,0.15)', border: '1px solid rgba(229,9,20,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+                <Download size={24} color="var(--primary-red)" />
+              </div>
+              <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8, color: '#fff' }}>Sign in to Download</h3>
+              <p style={{ color: '#888', fontSize: 13, lineHeight: 1.5 }}>
+                You need a free account to download movies and series.
+              </p>
+            </div>
+            <button onClick={() => navigate('/auth')}
+              style={{ width: '100%', padding: '14px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #e50914, #b00710)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 10, boxShadow: '0 8px 24px rgba(229,9,20,0.35)' }}>
+              Sign In / Create Account
+            </button>
+            <button onClick={() => setShowLoginPrompt(false)}
+              style={{ width: '100%', padding: '12px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#aaa', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+              Cancel
             </button>
           </div>
         </div>

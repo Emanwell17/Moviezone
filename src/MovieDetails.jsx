@@ -7,7 +7,8 @@ import { getImageUrl, fetchSources, fetchInfo, fetchSubtitles, getSubtitleSrtUrl
 const MovieDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addDownload, addToMyList, removeFromMyList, isInMyList } = useAppContext();
+  const { user, addDownload, addToMyList, removeFromMyList, isInMyList } = useAppContext();
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [movie, setMovie] = useState(null);
   const [sources, setSources] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -161,7 +162,7 @@ const MovieDetails = () => {
             {isSeries ? `Play S${selectedSeason} E${selectedEpisode}` : 'Play'}
           </button>
           <div style={{ position: 'relative' }}>
-            <button onClick={() => { if (!sources.length) { alert('No download links found'); return; } setShowDownloadMenu(v => !v); }}
+            <button onClick={() => { if (!user) { setShowLoginPrompt(true); return; } if (!sources.length) { alert('No download links found'); return; } setShowDownloadMenu(v => !v); }}
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#222', color: 'white', width: 50, height: '100%', minHeight: 48, borderRadius: 15, border: 'none', cursor: 'pointer' }}>
               <Download size={20} />
             </button>
@@ -253,6 +254,35 @@ const MovieDetails = () => {
           </div>
         )}
       </div>
+
+      {/* Login required prompt */}
+      {showLoginPrompt && (
+        <div onClick={() => setShowLoginPrompt(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 480, background: '#1a1a1a', borderRadius: '24px 24px 0 0', padding: '32px 24px 40px', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 -16px 48px rgba(0,0,0,0.6)' }}>
+            {/* Handle bar */}
+            <div style={{ width: 40, height: 4, background: '#333', borderRadius: 2, margin: '0 auto 24px' }} />
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ width: 60, height: 60, borderRadius: '50%', background: 'rgba(229,9,20,0.15)', border: '1px solid rgba(229,9,20,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+                <Download size={26} color="var(--primary-red)" />
+              </div>
+              <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>Sign in to Download</h3>
+              <p style={{ color: '#888', fontSize: 14, lineHeight: 1.5 }}>
+                Create a free account or sign in to download movies and series in your preferred quality.
+              </p>
+            </div>
+            <button onClick={() => { setShowLoginPrompt(false); navigate('/auth'); }}
+              style={{ width: '100%', padding: '15px', borderRadius: 14, border: 'none', background: 'linear-gradient(135deg, #e50914, #b00710)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', marginBottom: 12, boxShadow: '0 8px 24px rgba(229,9,20,0.35)' }}>
+              Sign In / Create Account
+            </button>
+            <button onClick={() => setShowLoginPrompt(false)}
+              style={{ width: '100%', padding: '13px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#aaa', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .spinner { width: 36px; height: 36px; border: 3px solid rgba(255,255,255,0.15); border-top-color: var(--primary-red, #e50914); border-radius: 50%; animation: spin 0.8s linear infinite; }

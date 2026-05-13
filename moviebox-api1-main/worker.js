@@ -382,44 +382,38 @@ async function handleSources(movieId, url, request) {
     return json({ status: 'success', data: { ...dlData, processedSources } });
 }
 
-async function handleDebugSubtitles(url) {
-    const u = new URL(url);
-    const mbId = u.searchParams.get('id');
-    const season = u.searchParams.get('season') || 0;
-    const episode = u.searchParams.get('episode') || 0;
-    if (!mbId) return json({ status: 'error', message: 'id required' }, 400);
-
-    const dlParams = `subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`;
-    const mirrors = ['h5.aoneroom.com', 'moviebox.pk', 'moviebox.ph', 'moviebox.id'];
-    const results = {};
-
-    for (const mirror of mirrors) {
-        try {
-            const r = await fetch(`https://${mirror}/wefeed-h5-bff/web/subject/download?${dlParams}`, {
-                headers: { ...DEFAULT_HEADERS, 'Host': mirror }
-            });
-            const data = await r.json();
-            results[mirror] = { status: r.status, captions: data?.data?.captions || [], downloads: (data?.data?.downloads || []).length };
-        } catch (e) {
-            results[mirror] = { error: e.message };
+// Extract SRT text from a ZIP ArrayBuffer (supports stored + deflate)
+async function extractSrtFromZip(buffer) {
+    const view = new DataView(buffer);
+    let offset = 0;
+    while (offset < buffer.byteLength - 30) {
+        if (view.getUint32(offset, true) !== 0x04034b50) { offset++; continue; }
+        const compressionMethod = view.getUint16(offset + 8, true);
+        const compressedSize = view.getUint32(offset + 18, true);
+        const fileNameLength = view.getUint16(offset + 26, true);
+        const extraFieldLength = view.getUint16(offset + 28, true);
+        const fileName = new TextDecoder().decode(new Uint8Array(buffer, offset + 30, fileNameLength));
+        const dataStart = offset + 30 + fileNameLength + extraFieldLength;
+        if (fileName.toLowerCase().endsWith('.srt')) {
+            const compressed = buffer.slice(dataStart, dataStart + compressedSize);
+            if (compressionMethod === 0) return new TextDecoder('utf-8').decode(compressed);
+            if (compressionMethod === 8) {
+                const ds = new DecompressionStream('deflate-raw');
+                const writer = ds.writable.getWriter();
+                const reader = ds.readable.getReader();
+                writer.write(new Uint8Array(compressed)); writer.close();
+                const chunks = [];
+                while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); }
+                const total = chunks.reduce((n, c) => n + c.length, 0);
+                const buf = new Uint8Array(total); let pos = 0;
+                for (const c of chunks) { buf.set(c, pos); pos += c.length; }
+                return new TextDecoder('utf-8').decode(buf);
+            }
         }
+        offset = dataStart + compressedSize;
     }
-
-    return json({ status: 'success', data: results });
+    throw new Error('No SRT in ZIP');
 }
-
-const LANG_NAMES = {
-    'en': 'English', 'fr': 'French', 'es': 'Spanish', 'de': 'German',
-    'it': 'Italian', 'pt': 'Portuguese', 'ru': 'Russian', 'ja': 'Japanese',
-    'ko': 'Korean', 'zh-CN': 'Chinese (Simplified)', 'zh-TW': 'Chinese (Traditional)',
-    'ar': 'Arabic', 'hi': 'Hindi', 'nl': 'Dutch', 'pl': 'Polish',
-    'tr': 'Turkish', 'sv': 'Swedish', 'da': 'Danish', 'fi': 'Finnish',
-    'no': 'Norwegian', 'cs': 'Czech', 'hu': 'Hungarian', 'ro': 'Romanian',
-    'bg': 'Bulgarian', 'hr': 'Croatian', 'sk': 'Slovak', 'sl': 'Slovenian',
-    'uk': 'Ukrainian', 'he': 'Hebrew', 'id': 'Indonesian', 'ms': 'Malay',
-    'th': 'Thai', 'vi': 'Vietnamese', 'el': 'Greek', 'sr': 'Serbian',
-    'ca': 'Catalan', 'lt': 'Lithuanian', 'lv': 'Latvian', 'et': 'Estonian',
-};
 
 async function handleSubtitles(url) {
     const u = new URL(url);
@@ -427,71 +421,61 @@ async function handleSubtitles(url) {
     if (!title) return json({ status: 'success', data: [] });
 
     try {
-        const r = await fetch(
-            `https://api.opensubtitles.com/api/v1/subtitles?query=${encodeURIComponent(title)}&per_page=60`,
-            { headers: { 'Content-Type': 'application/json', 'User-Agent': 'MovieZone v1.0' } }
+        // Step 1: Get IMDB ID via free IMDB autocomplete API
+        const imdbRes = await fetch(
+            `https://v3.sg.media-imdb.com/suggestion/x/${encodeURIComponent(title)}.json`,
+            { headers: { 'User-Agent': 'Mozilla/5.0' } }
         );
-        if (!r.ok) return json({ status: 'success', data: [] });
-        const data = await r.json();
-        if (!Array.isArray(data?.data)) return json({ status: 'success', data: [] });
+        const imdbData = await imdbRes.json();
+        const imdbId = imdbData?.d?.[0]?.id;
+        if (!imdbId) return json({ status: 'success', data: [] });
 
-        // Pick best-rated subtitle per language
+        // Step 2: Fetch YIFY subtitle page for this movie
+        const yifyRes = await fetch(
+            `https://yifysubtitles.ch/movie-imdb/${imdbId}`,
+            { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
+        );
+        if (!yifyRes.ok) return json({ status: 'success', data: [] });
+        const html = await yifyRes.text();
+
+        // Step 3: Extract one subtitle slug per language from the page
+        const slugRegex = /href="\/subtitles\/([^"]+)"/g;
         const byLang = {};
-        for (const item of data.data) {
-            const attrs = item.attributes;
-            const lang = attrs.language;
-            const fileId = attrs.files?.[0]?.file_id;
-            if (!lang || !fileId) continue;
-            const rating = attrs.ratings || 0;
-            if (!byLang[lang] || rating > (byLang[lang].rating || 0)) {
-                byLang[lang] = { lang, fileId, rating };
-            }
+        let match;
+        while ((match = slugRegex.exec(html)) !== null) {
+            const slug = match[1];
+            // Slug format: "movie-title-YEAR-LANGUAGE-yify-ID"
+            const langMatch = slug.match(/-(\d{4})-(.+?)-yify-/);
+            if (!langMatch) continue;
+            const langSlug = langMatch[2];
+            const langName = langSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            if (!byLang[langName]) byLang[langName] = { langName, slug };
         }
 
-        const subs = Object.values(byLang).map(s => ({
-            lang: s.lang,
-            langName: LANG_NAMES[s.lang] || s.lang.toUpperCase(),
-            fileId: s.fileId,
-        })).sort((a, b) => a.langName.localeCompare(b.langName));
-
+        const subs = Object.values(byLang).sort((a, b) => a.langName.localeCompare(b.langName));
         return json({ status: 'success', data: subs });
     } catch { return json({ status: 'success', data: [] }); }
 }
 
 async function handleSubtitleProxy(url, kv) {
     const u = new URL(url);
-    const fileId = u.searchParams.get('fileId');
+    const slug = u.searchParams.get('slug');
     const format = u.searchParams.get('format') || 'vtt';
-    if (!fileId) return json({ status: 'error', message: 'fileId required' }, 400);
+    if (!slug) return json({ status: 'error', message: 'slug required' }, 400);
 
     try {
-        // Check KV cache first (avoids hitting rate limits)
-        const cacheKey = `subtitle:${fileId}`;
-        let srtContent = kv ? await kv.get(cacheKey) : null;
-
-        if (!srtContent) {
-            // Get a temporary download link from OpenSubtitles
-            const dlRes = await fetch('https://api.opensubtitles.com/api/v1/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'User-Agent': 'MovieZone v1.0' },
-                body: JSON.stringify({ file_id: parseInt(fileId) }),
-            });
-            if (!dlRes.ok) return json({ status: 'error', message: 'Download link failed' }, 502);
-            const dlData = await dlRes.json();
-            if (!dlData.link) return json({ status: 'error', message: 'No download link' }, 502);
-
-            // Fetch the actual subtitle file
-            const r = await fetch(dlData.link, { headers: { 'User-Agent': 'MovieZone v1.0' } });
-            if (!r.ok) return json({ status: 'error', message: 'Failed to fetch subtitle' }, 502);
-            srtContent = await r.text();
-
-            // Cache for 7 days
-            if (kv) await kv.put(cacheKey, srtContent, { expirationTtl: 604800 });
-        }
+        // Fetch ZIP from YIFY and extract SRT
+        const zipRes = await fetch(
+            `https://yifysubtitles.ch/subtitle/${slug}.zip`,
+            { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
+        );
+        if (!zipRes.ok) return json({ status: 'error', message: 'Failed to fetch subtitle' }, 502);
+        const zipBuffer = await zipRes.arrayBuffer();
+        const srtContent = await extractSrtFromZip(zipBuffer);
 
         if (format === 'srt') {
             return new Response(srtContent, {
-                headers: cors({ 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': 'attachment; filename="subtitle.srt"' }),
+                headers: cors({ 'Content-Type': 'text/plain; charset=utf-8', 'Content-Disposition': `attachment; filename="${slug}.srt"` }),
             });
         }
 
@@ -501,7 +485,7 @@ async function handleSubtitleProxy(url, kv) {
             .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2');
 
         return new Response(vtt, {
-            headers: cors({ 'Content-Type': 'text/vtt; charset=utf-8', 'Cache-Control': 'public, max-age=3600' }),
+            headers: cors({ 'Content-Type': 'text/vtt; charset=utf-8', 'Cache-Control': 'public, max-age=86400' }),
         });
     } catch (e) { return json({ status: 'error', message: e.message }, 500); }
 }
@@ -778,7 +762,6 @@ export default {
             if (path.startsWith('/api/sources/')) return handleSources(path.split('/api/sources/')[1], request.url, request);
             if (path === '/api/stream') return handleStream(request.url, request);
             if (path === '/api/download') return handleDownload(request.url, request);
-            if (path === '/api/debug-subtitles') return handleDebugSubtitles(request.url);
             if (path === '/api/subtitles') return handleSubtitles(request.url);
             if (path === '/api/subtitle-proxy') return handleSubtitleProxy(request.url, kv);
 

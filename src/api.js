@@ -143,11 +143,11 @@ export const fetchSubtitles = async (title) => {
   } catch { return []; }
 };
 
-export const getSubtitleVttUrl = (fileId) =>
-  `${API}/api/subtitle-proxy?fileId=${fileId}`;
+export const getSubtitleVttUrl = (slug) =>
+  `${API}/api/subtitle-proxy?slug=${encodeURIComponent(slug)}`;
 
-export const getSubtitleSrtUrl = (fileId) =>
-  `${API}/api/subtitle-proxy?fileId=${fileId}&format=srt`;
+export const getSubtitleSrtUrl = (slug) =>
+  `${API}/api/subtitle-proxy?slug=${encodeURIComponent(slug)}&format=srt`;
 
 // --- AUTH ---
 const getToken = () => localStorage.getItem('token');

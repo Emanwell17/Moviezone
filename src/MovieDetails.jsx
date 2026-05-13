@@ -189,7 +189,7 @@ const MovieDetails = () => {
                 <p style={{ padding: '4px 16px', fontSize: 10, color: '#666', textTransform: 'uppercase', letterSpacing: 1, margin: 0 }}>Download Subtitles</p>
                 {subtitles.length === 0 && <div style={{ padding: '11px 16px', fontSize: 13, color: '#666' }}>No subtitles found</div>}
                 {subtitles.map(s => (
-                  <div key={s.lang} onClick={() => { window.open(getSubtitleSrtUrl(s.fileId), '_blank'); setShowSubMenu(false); }}
+                  <div key={s.lang} onClick={() => { window.open(getSubtitleSrtUrl(s.slug), '_blank'); setShowSubMenu(false); }}
                     style={{ padding: '11px 16px', cursor: 'pointer', fontSize: 14, color: '#fff' }}>
                     {s.langName}
                   </div>

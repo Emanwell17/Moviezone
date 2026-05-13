@@ -31,12 +31,13 @@ const BottomNav = () => {
   const navItems = user ? [
     { path: '/', label: 'Home', icon: <HomeIcon /> },
     { path: '/explore', label: 'Trending', icon: <Flame /> },
-    { path: '/mylist', label: 'My List', icon: <Bookmark /> },
+    { path: '/mylist', label: 'Watchlist', icon: <Bookmark /> },
     { path: '/downloads', label: 'Download', icon: <FolderDown /> },
     { path: '/profile', label: 'Profile', icon: <User /> }
   ] : [
     { path: '/', label: 'Home', icon: <HomeIcon /> },
-    { path: '/explore', label: 'Explore', icon: <Flame /> },
+    { path: '/explore', label: 'Trending', icon: <Flame /> },
+    { path: '/mylist', label: 'Watchlist', icon: <Bookmark /> },
     { path: '/auth', label: 'Sign In', icon: <User /> }
   ];
 

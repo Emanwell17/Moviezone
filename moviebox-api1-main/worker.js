@@ -389,24 +389,19 @@ async function handleDebugSubtitles(url) {
     const episode = u.searchParams.get('episode') || 0;
     if (!mbId) return json({ status: 'error', message: 'id required' }, 400);
 
+    const dlParams = `subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`;
+    const mirrors = ['h5.aoneroom.com', 'moviebox.pk', 'moviebox.ph', 'moviebox.id'];
     const results = {};
 
-    // Try common MovieBox subtitle endpoint patterns
-    const endpoints = [
-        `/wefeed-h5-bff/web/subject/subtitle?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
-        `/wefeed-h5-bff/web/subject/caption?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
-        `/wefeed-h5-bff/web/subject/cc?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
-        `/wefeed-h5-bff/web/subject/subtitles?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
-        `/wefeed-h5-bff/web/subject/download?subjectId=${mbId}${season ? `&se=${season}&ep=${episode}` : ''}`,
-    ];
-
-    for (const endpoint of endpoints) {
+    for (const mirror of mirrors) {
         try {
-            const r = await apiRequest(`${HOST_URL}${endpoint}`);
+            const r = await fetch(`https://${mirror}/wefeed-h5-bff/web/subject/download?${dlParams}`, {
+                headers: { ...DEFAULT_HEADERS, 'Host': mirror }
+            });
             const data = await r.json();
-            results[endpoint] = { status: r.status, data };
+            results[mirror] = { status: r.status, captions: data?.data?.captions || [], downloads: (data?.data?.downloads || []).length };
         } catch (e) {
-            results[endpoint] = { error: e.message };
+            results[mirror] = { error: e.message };
         }
     }
 

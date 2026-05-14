@@ -8,3 +8,6 @@ enabled = true
 [[kv_namespaces]]
 binding = "MOVIEZONE_KV"
 id = "f815582c7e204a7fac46198556ccd2c2"
+
+[vars]
+SUBDL_KEY = "subdl_bHnreuN0vauo9FGMpgJu6Gbh2OkaFVlgSNin9wo_qSs"

@@ -847,6 +847,17 @@ export default {
             if (path === '/api/download') return handleDownload(request.url, request);
             if (path === '/api/subtitles') return handleSubtitles(request.url, env);
             if (path === '/api/subtitle-proxy') return handleSubtitleProxy(request.url, kv);
+            if (path === '/api/debug-subtitles') {
+                const key = env?.SUBDL_KEY || 'subdl_bHnreuN0vauo9FGMpgJu6Gbh2OkaFVlgSNin9wo_qSs';
+                const testUrl = `https://api.subdl.com/api/v1/subtitles?api_key=${key}&film_name=Breaking+Bad&season=1&episode=1&type=tv`;
+                try {
+                    const r = await fetch(testUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+                    const text = await r.text();
+                    return new Response(JSON.stringify({ status: r.status, ok: r.ok, key_set: !!env?.SUBDL_KEY, body: text.slice(0, 500) }), { headers: cors({ 'Content-Type': 'application/json' }) });
+                } catch(e) {
+                    return new Response(JSON.stringify({ error: e.message }), { headers: cors({ 'Content-Type': 'application/json' }) });
+                }
+            }
 
             // Bootstrap admin (run once to seed admin account)
             if (path === '/api/bootstrap' && method === 'GET') return bootstrapAdmin(kv);

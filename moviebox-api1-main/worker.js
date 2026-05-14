@@ -415,7 +415,7 @@ async function extractSrtFromZip(buffer) {
     throw new Error('No SRT in ZIP');
 }
 
-async function handleSubtitles(url) {
+async function handleSubtitles(url, env) {
     const u = new URL(url);
     const title = u.searchParams.get('title') || '';
     const season = parseInt(u.searchParams.get('season') || '0');
@@ -423,13 +423,57 @@ async function handleSubtitles(url) {
     if (!title) return json({ status: 'success', data: [] });
 
     const isSeries = season > 0 && episode > 0;
-    // Build episode tag e.g. "s01e05" for filtering series slugs
-    const epTag = isSeries
-        ? `s${String(season).padStart(2, '0')}e${String(episode).padStart(2, '0')}`
-        : null;
+    const SUBDL_KEY = env?.SUBDL_KEY;
 
+    const LANG_NAMES = {
+        'AR': 'Arabic', 'BG': 'Bulgarian', 'ZH': 'Chinese', 'HR': 'Croatian',
+        'CS': 'Czech', 'DA': 'Danish', 'NL': 'Dutch', 'EN': 'English',
+        'ET': 'Estonian', 'FA': 'Persian', 'FI': 'Finnish', 'FR': 'French',
+        'DE': 'German', 'EL': 'Greek', 'HE': 'Hebrew', 'HU': 'Hungarian',
+        'ID': 'Indonesian', 'IT': 'Italian', 'JA': 'Japanese', 'KO': 'Korean',
+        'LV': 'Latvian', 'LT': 'Lithuanian', 'MK': 'Macedonian', 'MS': 'Malay',
+        'NO': 'Norwegian', 'PL': 'Polish', 'PT': 'Portuguese', 'RO': 'Romanian',
+        'RU': 'Russian', 'SR': 'Serbian', 'SK': 'Slovak', 'SL': 'Slovenian',
+        'ES': 'Spanish', 'SV': 'Swedish', 'TH': 'Thai', 'TR': 'Turkish',
+        'UK': 'Ukrainian', 'VI': 'Vietnamese',
+    };
+
+    // ── Subdl (primary — great series + movie coverage) ──────────────────────
+    if (SUBDL_KEY) {
+        try {
+            const params = new URLSearchParams({ api_key: SUBDL_KEY, film_name: title });
+            if (isSeries) { params.set('season', season); params.set('episode', episode); params.set('type', 'tv'); }
+            else { params.set('type', 'movie'); }
+
+            const res = await fetch(`https://api.subdl.com/api/v1/subtitles?${params}`, {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const byLang = {};
+                for (const sub of (data.subtitles || [])) {
+                    const code = (sub.language || '').toUpperCase();
+                    if (!code || !sub.url) continue;
+                    if (!byLang[code]) {
+                        byLang[code] = {
+                            lang: code.toLowerCase(),
+                            langName: LANG_NAMES[code] || code,
+                            slug: `subdl:${sub.url}`, // e.g. subdl:/subtitle/12345.zip
+                        };
+                    }
+                }
+                const subs = Object.values(byLang).sort((a, b) => a.langName.localeCompare(b.langName));
+                if (subs.length > 0) return json({ status: 'success', data: subs });
+            }
+        } catch { /* fall through to YIFY */ }
+    }
+
+    // ── YIFY fallback (movies only, no API key needed) ────────────────────────
     try {
-        // Step 1: Get IMDB ID via free IMDB autocomplete API
+        const epTag = isSeries
+            ? `s${String(season).padStart(2, '0')}e${String(episode).padStart(2, '0')}`
+            : null;
+
         const imdbRes = await fetch(
             `https://v3.sg.media-imdb.com/suggestion/x/${encodeURIComponent(title)}.json`,
             { headers: { 'User-Agent': 'Mozilla/5.0' } }
@@ -438,7 +482,6 @@ async function handleSubtitles(url) {
         const imdbId = imdbData?.d?.[0]?.id;
         if (!imdbId) return json({ status: 'success', data: [] });
 
-        // Step 2: Fetch YIFY subtitle page (works for both movies and series)
         const yifyRes = await fetch(
             `https://yifysubtitles.ch/movie-imdb/${imdbId}`,
             { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
@@ -446,10 +489,6 @@ async function handleSubtitles(url) {
         if (!yifyRes.ok) return json({ status: 'success', data: [] });
         const html = await yifyRes.text();
 
-        // Step 3: Extract subtitle slugs, handling both movie and series formats
-        // Movie format:  "title-2020-english-yify-12345"
-        // Series format: "title-s01e05-english-yify-12345"
-        //            or: "title-s01e05-2020-english-yify-12345"
         const LANG_CODES = {
             'arabic': 'ar', 'bulgarian': 'bg', 'chinese': 'zh', 'croatian': 'hr',
             'czech': 'cs', 'danish': 'da', 'dutch': 'nl', 'english': 'en',
@@ -462,35 +501,20 @@ async function handleSubtitles(url) {
             'slovenian': 'sl', 'spanish': 'es', 'swedish': 'sv', 'thai': 'th',
             'turkish': 'tr', 'ukrainian': 'uk', 'vietnamese': 'vi',
         };
-
-        function extractLangSlug(slug) {
-            // Movie: -2020-english-yify-
-            let m = slug.match(/-\d{4}-(.+?)-yify-/);
-            if (m) return m[1];
-            // Series: -s01e05-english-yify-  or  -s01e05-2020-english-yify-
-            m = slug.match(/-s\d+e\d+(?:-\d{4})?-(.+?)-yify-/i);
-            if (m) return m[1];
-            return null;
-        }
-
         const slugRegex = /href="\/subtitles\/([^"]+)"/g;
         const byLang = {};
         let match;
         while ((match = slugRegex.exec(html)) !== null) {
             const slug = match[1];
-
-            // For series: only keep slugs that match the requested S##E##
             if (epTag && !slug.toLowerCase().includes(epTag)) continue;
-
-            const langSlug = extractLangSlug(slug);
-            if (!langSlug) continue;
-
+            let m = slug.match(/-\d{4}-(.+?)-yify-/) || slug.match(/-s\d+e\d+(?:-\d{4})?-(.+?)-yify-/i);
+            if (!m) continue;
+            const langSlug = m[1];
             const langName = langSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
             const firstWord = langSlug.split('-')[0].toLowerCase();
             const lang = LANG_CODES[firstWord] || firstWord.substring(0, 2);
             if (!byLang[langName]) byLang[langName] = { lang, langName, slug };
         }
-
         const subs = Object.values(byLang).sort((a, b) => a.langName.localeCompare(b.langName));
         return json({ status: 'success', data: subs });
     } catch { return json({ status: 'success', data: [] }); }
@@ -503,19 +527,31 @@ async function handleSubtitleProxy(url, kv) {
     if (!slug) return json({ status: 'error', message: 'slug required' }, 400);
 
     try {
-        // Fetch ZIP from YIFY — must include Referer and browser headers to avoid 403
-        const browserHeaders = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Referer': `https://yifysubtitles.ch/subtitles/${slug}`,
-            'Accept': 'application/zip,application/octet-stream,*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'same-origin',
-        };
-        let zipRes = await fetch(`https://yifysubtitles.ch/subtitle/${slug}.zip`, { headers: browserHeaders });
-        // Try .com mirror if .ch fails
-        if (!zipRes.ok) zipRes = await fetch(`https://yifysubtitles.com/subtitle/${slug}.zip`, { headers: { ...browserHeaders, 'Referer': `https://yifysubtitles.com/subtitles/${slug}` } });
+        let zipRes;
+        if (slug.startsWith('subdl:')) {
+            // Subdl download: slug = "subdl:/subtitle/12345.zip"
+            const path = slug.slice(6);
+            zipRes = await fetch(`https://dl.subdl.com${path}`, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                    'Accept': 'application/zip,application/octet-stream,*/*',
+                    'Referer': 'https://subdl.com',
+                }
+            });
+        } else {
+            // YIFY download
+            const browserHeaders = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Referer': `https://yifysubtitles.ch/subtitles/${slug}`,
+                'Accept': 'application/zip,application/octet-stream,*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'same-origin',
+            };
+            zipRes = await fetch(`https://yifysubtitles.ch/subtitle/${slug}.zip`, { headers: browserHeaders });
+            if (!zipRes.ok) zipRes = await fetch(`https://yifysubtitles.com/subtitle/${slug}.zip`, { headers: { ...browserHeaders, 'Referer': `https://yifysubtitles.com/subtitles/${slug}` } });
+        }
         if (!zipRes.ok) return json({ status: 'error', message: `Subtitle fetch failed: ${zipRes.status}` }, 502);
         const zipBuffer = await zipRes.arrayBuffer();
         const srtContent = await extractSrtFromZip(zipBuffer);
@@ -809,7 +845,7 @@ export default {
             if (path.startsWith('/api/sources/')) return handleSources(path.split('/api/sources/')[1], request.url, request);
             if (path === '/api/stream') return handleStream(request.url, request);
             if (path === '/api/download') return handleDownload(request.url, request);
-            if (path === '/api/subtitles') return handleSubtitles(request.url);
+            if (path === '/api/subtitles') return handleSubtitles(request.url, env);
             if (path === '/api/subtitle-proxy') return handleSubtitleProxy(request.url, kv);
 
             // Bootstrap admin (run once to seed admin account)

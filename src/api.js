@@ -135,7 +135,46 @@ export const resolveMovieBoxId = async (id, titleHint = '') => {
 };
 
 // --- SUBTITLES ---
+const SUBDL_KEY = 'subdl_bHnreuN0vauo9FGMpgJu6Gbh2OkaFVlgSNin9wo_qSs';
+const SUBDL_LANG_NAMES = {
+  'AR':'Arabic','BG':'Bulgarian','ZH':'Chinese','HR':'Croatian','CS':'Czech',
+  'DA':'Danish','NL':'Dutch','EN':'English','ET':'Estonian','FA':'Persian',
+  'FI':'Finnish','FR':'French','DE':'German','EL':'Greek','HE':'Hebrew',
+  'HU':'Hungarian','ID':'Indonesian','IT':'Italian','JA':'Japanese','KO':'Korean',
+  'LV':'Latvian','LT':'Lithuanian','MK':'Macedonian','MS':'Malay','NO':'Norwegian',
+  'PL':'Polish','PT':'Portuguese','RO':'Romanian','RU':'Russian','SR':'Serbian',
+  'SK':'Slovak','SL':'Slovenian','ES':'Spanish','SV':'Swedish','TH':'Thai',
+  'TR':'Turkish','UK':'Ukrainian','VI':'Vietnamese',
+};
+
 export const fetchSubtitles = async (title, season = 0, episode = 0) => {
+  const isSeries = season > 0 && episode > 0;
+
+  // Call Subdl directly from the browser (Cloudflare Worker IPs are blocked by Subdl)
+  try {
+    const params = new URLSearchParams({ api_key: SUBDL_KEY, film_name: title });
+    if (isSeries) { params.set('season', season); params.set('episode', episode); params.set('type', 'tv'); }
+    else { params.set('type', 'movie'); }
+
+    const res = await fetch(`https://api.subdl.com/api/v1/subtitles?${params}`);
+    if (res.ok) {
+      const data = await res.json();
+      const byLang = {};
+      for (const sub of (data.subtitles || [])) {
+        const code = (sub.language || '').toUpperCase();
+        if (!code || !sub.url) continue;
+        if (!byLang[code]) byLang[code] = {
+          lang: code.toLowerCase(),
+          langName: SUBDL_LANG_NAMES[code] || code,
+          slug: `subdl:${sub.url}`,
+        };
+      }
+      const subs = Object.values(byLang).sort((a, b) => a.langName.localeCompare(b.langName));
+      if (subs.length > 0) return subs;
+    }
+  } catch {}
+
+  // Fallback: worker-side YIFY (good for movies)
   try {
     const params = new URLSearchParams({ title });
     if (season > 0) params.set('season', season);

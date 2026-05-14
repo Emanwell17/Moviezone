@@ -423,7 +423,7 @@ async function handleSubtitles(url, env) {
     if (!title) return json({ status: 'success', data: [] });
 
     const isSeries = season > 0 && episode > 0;
-    const SUBDL_KEY = env?.SUBDL_KEY;
+    const SUBDL_KEY = env?.SUBDL_KEY || 'subdl_bHnreuN0vauo9FGMpgJu6Gbh2OkaFVlgSNin9wo_qSs';
 
     const LANG_NAMES = {
         'AR': 'Arabic', 'BG': 'Bulgarian', 'ZH': 'Chinese', 'HR': 'Croatian',

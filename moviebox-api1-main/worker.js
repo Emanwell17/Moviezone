@@ -418,7 +418,15 @@ async function extractSrtFromZip(buffer) {
 async function handleSubtitles(url) {
     const u = new URL(url);
     const title = u.searchParams.get('title') || '';
+    const season = parseInt(u.searchParams.get('season') || '0');
+    const episode = parseInt(u.searchParams.get('episode') || '0');
     if (!title) return json({ status: 'success', data: [] });
+
+    const isSeries = season > 0 && episode > 0;
+    // Build episode tag e.g. "s01e05" for filtering series slugs
+    const epTag = isSeries
+        ? `s${String(season).padStart(2, '0')}e${String(episode).padStart(2, '0')}`
+        : null;
 
     try {
         // Step 1: Get IMDB ID via free IMDB autocomplete API
@@ -430,7 +438,7 @@ async function handleSubtitles(url) {
         const imdbId = imdbData?.d?.[0]?.id;
         if (!imdbId) return json({ status: 'success', data: [] });
 
-        // Step 2: Fetch YIFY subtitle page for this movie
+        // Step 2: Fetch YIFY subtitle page (works for both movies and series)
         const yifyRes = await fetch(
             `https://yifysubtitles.ch/movie-imdb/${imdbId}`,
             { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } }
@@ -438,7 +446,10 @@ async function handleSubtitles(url) {
         if (!yifyRes.ok) return json({ status: 'success', data: [] });
         const html = await yifyRes.text();
 
-        // Step 3: Extract one subtitle slug per language from the page
+        // Step 3: Extract subtitle slugs, handling both movie and series formats
+        // Movie format:  "title-2020-english-yify-12345"
+        // Series format: "title-s01e05-english-yify-12345"
+        //            or: "title-s01e05-2020-english-yify-12345"
         const LANG_CODES = {
             'arabic': 'ar', 'bulgarian': 'bg', 'chinese': 'zh', 'croatian': 'hr',
             'czech': 'cs', 'danish': 'da', 'dutch': 'nl', 'english': 'en',
@@ -451,15 +462,29 @@ async function handleSubtitles(url) {
             'slovenian': 'sl', 'spanish': 'es', 'swedish': 'sv', 'thai': 'th',
             'turkish': 'tr', 'ukrainian': 'uk', 'vietnamese': 'vi',
         };
+
+        function extractLangSlug(slug) {
+            // Movie: -2020-english-yify-
+            let m = slug.match(/-\d{4}-(.+?)-yify-/);
+            if (m) return m[1];
+            // Series: -s01e05-english-yify-  or  -s01e05-2020-english-yify-
+            m = slug.match(/-s\d+e\d+(?:-\d{4})?-(.+?)-yify-/i);
+            if (m) return m[1];
+            return null;
+        }
+
         const slugRegex = /href="\/subtitles\/([^"]+)"/g;
         const byLang = {};
         let match;
         while ((match = slugRegex.exec(html)) !== null) {
             const slug = match[1];
-            // Slug format: "movie-title-YEAR-LANGUAGE-yify-ID"
-            const langMatch = slug.match(/-(\d{4})-(.+?)-yify-/);
-            if (!langMatch) continue;
-            const langSlug = langMatch[2];
+
+            // For series: only keep slugs that match the requested S##E##
+            if (epTag && !slug.toLowerCase().includes(epTag)) continue;
+
+            const langSlug = extractLangSlug(slug);
+            if (!langSlug) continue;
+
             const langName = langSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
             const firstWord = langSlug.split('-')[0].toLowerCase();
             const lang = LANG_CODES[firstWord] || firstWord.substring(0, 2);

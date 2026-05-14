@@ -135,9 +135,12 @@ export const resolveMovieBoxId = async (id, titleHint = '') => {
 };
 
 // --- SUBTITLES ---
-export const fetchSubtitles = async (title) => {
+export const fetchSubtitles = async (title, season = 0, episode = 0) => {
   try {
-    const res = await fetch(`${API}/api/subtitles?title=${encodeURIComponent(title)}`);
+    const params = new URLSearchParams({ title });
+    if (season > 0) params.set('season', season);
+    if (episode > 0) params.set('episode', episode);
+    const res = await fetch(`${API}/api/subtitles?${params.toString()}`);
     const json = await res.json();
     return json.data || [];
   } catch { return []; }

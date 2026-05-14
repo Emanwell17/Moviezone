@@ -154,11 +154,11 @@ export default function Player() {
     load();
   }, [id, effectiveSeason, effectiveEpisode, isPremium, retryCount]);
 
-  // Fetch subtitles when title is known
+  // Fetch subtitles when title/episode changes
   useEffect(() => {
     if (!title) return;
-    fetchSubtitles(title).then(subs => setSubtitles(subs));
-  }, [title]);
+    fetchSubtitles(title, effectiveSeason || 0, effectiveEpisode || 0).then(subs => setSubtitles(subs));
+  }, [title, effectiveSeason, effectiveEpisode]);
 
   // Apply subtitle track to video
   useEffect(() => {
